@@ -13,7 +13,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.path="imgs/")
+knitr::opts_chunk$set(echo = FALSE, fig.path="imgs/")
 ```
 
 # Wstęp
@@ -36,10 +36,56 @@ Uczenie maszynowe z reguły dzielone jest na 3 podstawowe podkategorie:
 ### Uczenie nadzorowane (supervised learning)
 
 W ramach uczenia nadzorowanego naszym zadaniem jest znalezienie pewnego **"optymalnego mapowania"** ze **zmiennych objaśniających** $X$ do **zmiennych objaśnianych** $Y$ mając do dyspozyjcji **zbiór treningowy** 
-$\mathcal{D}=\left\{\left(\mathbf{x}_{i}, y_{i}\right)\right\}_{i=1}^{N}$, zawierający realizacje owych zmiennych, gdzie $N$ oznacza liczbę obserwacji z wbiorze treningowym. W najprostszym przypadku $\mathbf{x}_{i}$ jest $D$-wymiarowym wektorem numerycznym $\mathbf{x}_{i} \in \mathbb{R}^D$, choć w rzeczywistości może on posiadać bardziej złożoną strukture, może on np. reprezentować obraz, wideo, tekst, szereg czasowy itp. Podobnie postać $y_{i}$ może być dowolna, jednakże w większości przypadków zakładac będziemy, że $y_{i}$ zmienną kategoryczną i przyjmuje wartości z pewnego skończonego zbioru $y_{i} \in \{1, ..., C\}$ lub jest skalarem $y_{i} \in \mathbb{R}$
+$\mathcal{D}=\left\{\left(\mathbf{x}_{i}, y_{i}\right)\right\}_{i=1}^{N}$, zawierający realizację owych zmiennych, gdzie $N$ oznacza liczbę obserwacji z wbiorze treningowym. W najprostszym przypadku $\mathbf{x}_{i}$ jest $D$-wymiarowym wektorem numerycznym $\mathbf{x}_{i} \in \mathbb{R}^D$, choć w rzeczywistości może on posiadać bardziej złożoną strukturę, może on np. reprezentować obraz, dźwięk, tekst, szereg czasowy itp. Podobnie postać $y_{i}$ może być dowolna, jednakże w większości przypadków zakładac będziemy, że $y_{i}$ zmienną kategoryczną i przyjmuje wartości z pewnego skończonego zbioru $y_{i} \in \{1, ..., C\}$ lub jest skalarem $y_{i} \in \mathbb{R}$
 
 Gdy $y_{i}$ jest zmienną kategoryczną mówimy, że mamy do czynienia z **klasyfikacjią** (lub **rozpoznawaniem wzorców**), jeśli $y_{i}$ jest skalarem mówimy, że mamy do czynienia z **regresją**.
 
+Z probabilistycznego punktu widzenia zainteresowani jesteśmy rozkładem warunkowym $p(y_{i} | \mathbf{x}_{i}, \mathbf{\theta})$, gdzie $\mathbf{\theta}$ jest wektorem parametrów modelu.
+
+Przykłady:
+
+1. Predykcja cen mieszkań. Na podstawie zestawu zmiennych numerycznych i kategorycznych zawierających informacje o mieszkaniu chcielibyśmy przewidzieć jego cenę.
+
+```{r}
+library(mlbench)
+data("BostonHousing")
+head(BostonHousing)
+```
+
+2. Diagnostyka raka piersi. Na podstawie zestawu zmiennych numerycznych i kategorycznych zawierających informacje o pacjencie chielibyśmy dowiedzieć się czy typ raka jest łagodny czy złośliwy.
+
+```{r}
+data("BreastCancer")
+head(BreastCancer)
+```
+
+3. Detekcja SPAM. Na podstawie zawartości e-maili chcielibyśmy zaklasyfikować wiadomość jako SPAM bądź prawidłową korespondencję.
+
+```{r}
+library(kernlab)
+data(spam)
+head(spam)
+```
+
+4. Detekcja obiektów. Na podstawie obrazów chcielibyśmy zakwalifikować obiekty znajdujące się na nich, a także wskazać ich konkretne położenie. Jest to połączenie klasyfikacji i regresji.
+
+![](imgs/object_detection.jpeg)
+
+5. Segmentacja obrazu. Na podstawie obrazów chcielibyśmy zaklasyfikowac każdy pixel znajdujący się na nich.
+
+![](imgs/sem_seg.png)
+
 ### Uczenie nienadzorowane (unsupervised learning)
 
+W przeciwieństwie do uczenia nadzorowanego, w uczeniu nienzdzorowanym dysponujemy tylko inputem $\mathcal{D}=\left\{\mathbf{x}_{i}\right\}_{i=1}^{N}$, a naszym celem jest odnalezienie "interesujących wzorców". Zadania tego typu są zazwyczaj trudniejsze do poprawnego zdefiniowania, ponieważ nie od razu wiemy czym są "interesujące wzorce" oraz jak poprawnie określić metrykę błędu (w przeciwieństwie do uczenia nadzorowanego, gdzie mamy mozliwość porównania prawdziwej odpowiedzi $y_{i}$ z predykcją $\hat{y}_{i}$).
+
+W przypadku uczenia z nadzorem zainteresowani byliśmy rozkładem warunkowym $p(y_{i} | \mathbf{x}_{i}, \mathbf{\theta})$, w uczeniu nienadzorowanym budować będziemy modele w oparciu o rozkład $p(\mathbf{x}_{i} | \mathbf{\theta})$. 
+
+Przykłady:
+
+1. Klasteryzacja (clustering) klientów banku (lub sklepu). 
+
 ### Uczenie ze wzmocnieniem (reinforcement learning)
+
+W przypadku uczenia ze wzmocnieniem nie dysponujemy zbiorem treningowym w żadnej postaci. Zamiast tego inteligentny agent uczy się jakie akcje powinien podejmować w danym środowisku, aby zmaksymalizować nagrodę. Proces uczenia odbywa się (często w czasie rzeczywistym) poprzez podejmowanie przez agenta kolejnych prób w wyniku czego zostaje on nagrodzony bądź ukarany.
+
