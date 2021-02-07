@@ -1,0 +1,25 @@
+---
+title: "Statystyka II PG - Wykład"
+author: "Michał Maj"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path="imgs/")
+```
+
+# Wstęp
+
+## Machine Learning i Statystyka
+
+**Machine Learning (ML)** jest zbiorem metod, służących do automatycznego wykrywania wzorców w danych oraz do wykorzystywania odkrytych wzorców do przewidywania przyszłości lub podejmowania innych decyzji w warunkach niepewności. ML jest podkategotią **Sztucznej Inteligencji (AI)**. 
+
+![](imgs/aimldl.png)
