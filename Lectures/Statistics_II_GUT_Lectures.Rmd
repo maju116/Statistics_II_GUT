@@ -1,11 +1,11 @@
 ---
 title: "Statystyka II PG - Wykład"
 author: "Michał Maj"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
+date: "`r Sys.Date()`"
 output:
   html_document:
     toc: true
-    toc_depth: 2
+    toc_depth: 3
     toc_float: true
     theme: united
     number_sections: true
@@ -20,6 +20,26 @@ knitr::opts_chunk$set(echo = TRUE, fig.path="imgs/")
 
 ## Machine Learning i Statystyka
 
-**Machine Learning (ML)** jest zbiorem metod, służących do automatycznego wykrywania wzorców w danych oraz do wykorzystywania odkrytych wzorców do przewidywania przyszłości lub podejmowania innych decyzji w warunkach niepewności. ML jest podkategotią **Sztucznej Inteligencji (AI)**. 
+**Uczeie maszynowe / Machine Learning (ML)** jest zbiorem metod/algorytmów, służących do automatycznego wykrywania wzorców w danych oraz do wykorzystywania odkrytych wzorców do przewidywania przyszłości (predykcji) lub podejmowania innych decyzji w warunkach niepewności. ML jest subdziedziną **Sztucznej Inteligencji / 
+Artificial Intelligence (AI)** i bazuje na metodach znanych ze **Statystyki**.
 
 ![](imgs/aimldl.png)
+
+Na temat różnić między Statystyką, a Machine Learningiem możnaby dywagować w nieskończoność (niepotrzebnie), jednakże najlepiej i najprościej ujął to profesor Robert Tibshirani, współautor [An Introduction to Statistical Learning: With Applications in R](https://www.ime.unicamp.br/~dias/Intoduction%20to%20Statistical%20Learning.pdf):
+
+![](imgs/stat_vs_ml.png)
+
+## Typy/zadania Uczenia Maszynowego
+
+Uczenie maszynowe z reguły dzielone jest na 3 podstawowe podkategorie:
+
+### Uczenie nadzorowane (supervised learning)
+
+W ramach uczenia nadzorowanego naszym zadaniem jest znalezienie pewnego **"optymalnego mapowania"** ze **zmiennych objaśniających** $X$ do **zmiennych objaśnianych** $Y$ mając do dyspozyjcji **zbiór treningowy** 
+$\mathcal{D}=\left\{\left(\mathbf{x}_{i}, y_{i}\right)\right\}_{i=1}^{N}$, zawierający realizacje owych zmiennych, gdzie $N$ oznacza liczbę obserwacji z wbiorze treningowym. W najprostszym przypadku $\mathbf{x}_{i}$ jest $D$-wymiarowym wektorem numerycznym $\mathbf{x}_{i} \in \mathbb{R}^D$, choć w rzeczywistości może on posiadać bardziej złożoną strukture, może on np. reprezentować obraz, wideo, tekst, szereg czasowy itp. Podobnie postać $y_{i}$ może być dowolna, jednakże w większości przypadków zakładac będziemy, że $y_{i}$ zmienną kategoryczną i przyjmuje wartości z pewnego skończonego zbioru $y_{i} \in \{1, ..., C\}$ lub jest skalarem $y_{i} \in \mathbb{R}$
+
+Gdy $y_{i}$ jest zmienną kategoryczną mówimy, że mamy do czynienia z **klasyfikacjią** (lub **rozpoznawaniem wzorców**), jeśli $y_{i}$ jest skalarem mówimy, że mamy do czynienia z **regresją**.
+
+### Uczenie nienadzorowane (unsupervised learning)
+
+### Uczenie ze wzmocnieniem (reinforcement learning)
