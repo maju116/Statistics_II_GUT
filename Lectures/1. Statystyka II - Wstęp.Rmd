@@ -1,5 +1,5 @@
 ---
-title: "Statystyka II PG - Wykład"
+title: "Statystyka II PG - Wstęp"
 author: "Michał Maj"
 date: "`r Sys.Date()`"
 output:
@@ -83,9 +83,38 @@ W przypadku uczenia z nadzorem zainteresowani byliśmy rozkładem warunkowym $p(
 
 Przykłady:
 
-1. Klasteryzacja (clustering) klientów banku (lub sklepu). 
+1. Segmentacja (segmentation / clustering) klientów banku (lub sklepu). Wykorzystywane są proste algorytmy numeryczne jak k-średnich lub k-centroidów, ale również bardziej zaawansowane modele zmiennych **latentnych** (nieobserwowanych). 
+
+![](imgs/clustering.jpeg)
+
+2. Uzupenianie macierzy (Matrix completion) wykorzystywane na przykład do imputacji brakujących danych lub do tworzenia systemów rekomendacyjnych (Collaborative filtering):
+
+![](imgs/cf.png)
+
+3. Redukcja wymiarów:
+
+![](imgs/dim_red.png)
 
 ### Uczenie ze wzmocnieniem (reinforcement learning)
 
 W przypadku uczenia ze wzmocnieniem nie dysponujemy zbiorem treningowym w żadnej postaci. Zamiast tego inteligentny agent uczy się jakie akcje powinien podejmować w danym środowisku, aby zmaksymalizować nagrodę. Proces uczenia odbywa się (często w czasie rzeczywistym) poprzez podejmowanie przez agenta kolejnych prób w wyniku czego zostaje on nagrodzony bądź ukarany.
 
+Przykłady:
+
+1. Nauka poruszania się robotów / dronów:
+
+```{r}
+knitr::include_url("https://www.youtube.com/embed/n2gE7n11h1Y", height="500px")
+```
+
+2. Gra w gry (szachy, wideo, itp.):
+
+```{r}
+knitr::include_url("https://www.youtube.com/embed/VMp6pq6_QjI", height="500px")
+```
+
+3. Samochody autonomiczne:
+
+```{r}
+knitr::include_url("https://www.youtube.com/embed/tlThdr3O5Qo", height="500px")
+```
