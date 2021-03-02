@@ -1,0 +1,319 @@
+---
+title: "1. Regresja liniowa"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path="imgs/")
+library(tidyverse)
+```
+
+# Regresja liniowa
+
+## Metoda najmniejszych kwadratów
+
+Zacznijmy od prostego problemu. Poniższa tabela zawiera informacje na temat wieku (w miesiącach) oraz wzrostu (w cm) dzieci. 
+
+```{r, message=FALSE}
+age_height <- read_csv("age_height.csv")
+ggplot(age_height, aes(age, height)) + theme_bw() + geom_point()
+```
+
+Załóżmy, że istnieje zalezność pomiędzy wiekiem, a wzrostem. Mówiąc dokładniej załózmy, że istnieje  pewna **nieznana deterministyczna (nielosowa)** funckcja $f$ taka, że:
+
+$$
+wzrost = f(wiek) + \epsilon.
+$$
+W tym miejscu należy zadać 2 pytania. Po pierwsze czym jest $\epsilon$ i po drugie, czy nie może on zostać wykluczony z naszego równania? 
+
+$\epsilon$ okreslany jest często zwyczajnie mianem **błędu losowego**, jednakże warto zastanowić się skąd bierze się ten błąd? Wyobraźmy sobie, że udzielamy kredytu na podstawie pewnych predyktorów będących danymi o kliencie: zarobki, wydatki, stan cywilny, liczba dzieci itd. itp. Czy majac 2 klientów banku starających się o kredyt, posiadających identyczne wartości tych zmiennych jesteśmy pewni, że ich spłata (bądź brak spłaty) kredytu bedzie identyczny? Odpowiedź brzmi nie, poza informacjami zgromadzownymi przez bank istnieje jeszcze wiele różnych innych zmiennych (np. to czy dana osoba jest hazardzistą, wypadki itp.), które mogą wpłynąć na wynik. Z tego też powodu o $\epsilon$ warto myśleć jako o **niewiedzy o pewnych zjawiskach, które nie zostały ujęte w naszych danych** zamiast jako o sztucznym błędzie losowym. 
+
+Wróćmy jednak do naszego zadania. Założyliśmy pewną relację pomiędzy wielkiem dziecka a jego wzrostem. Czy jesteśmy w stanie odnaleźć tę relację, czyli znaleźć funkcję $f$? Nie do końca, $f$ może być dowolną funkcją. W tym miejscu zamiast szukać dowolnej funkcji, dodamy kilka dodatkowych założeń na jej temat tworząc pewien **model statystyczny**. W praktyce oznacza to, ze zamiast szukać funckji $f$ szukać będziemy funkcji $\hat{f}$ zakładając, że:
+
+$$
+wzrost ≈ \hat{f}(wiek)
+$$
+
+Model statystyczny oznacza pewne **uproszczenie rzeczywistości**, w którym funkcja $\hat{f}$ reprezentuje $f$ w pewien **"optymalny"** sposób. Wrócimy jeszcze do tego co oznacza optymalna reprezentacja.
+
+Jednym z najprostszych modeli statystycznych jest model **regresji liniowej**,  w którym zakładamy, że $\hat{f}$ jest funkcją liniową naszych predyktorów. W naszym przypadku:
+
+$$
+wzrost ≈ \hat{\beta_0} + \hat{\beta_1} wiek, 
+$$
+
+gdzie $\hat{\beta_0}$ i $\hat{\beta_1}$ sa pewnymi stałymi, które będziemy chcieli **wyestymować**. 
+
+Zwizualizyjmy założenia naszego modelu dla kliku przykładowych $\beta_0$ i $\beta_1$:
+
+```{r}
+beta_0_list <- c(60, 65, 79)
+beta_1_list <- c(0.9, 0.6, -0.3)
+test_lines <- map2_df(beta_0_list, beta_1_list, ~ {
+  beta_0 <- .x
+  beta_1 <- .y
+  beta <- paste("beta_0:", beta_0, "beta_1:", beta_1, collapse = " ")
+  tibble(
+    age = seq(18, 29, by = 0.1),
+    height = beta_0 + beta_1 * age,
+    beta = beta
+  )
+})
+ggplot(age_height, aes(age, height)) + theme_bw() + geom_point() +
+  geom_line(data = test_lines, aes(color = beta))
+```
+
+Oczywiście nasuwa nam się pytanie jak wybrać parametry $\beta_0$ i $\beta_1$ aby nasze rozwiązanie było **optymalne**. Aby je wybrać musimy sobie najpierw odpowiedzieć na pytanie co oznacza optymalność naszego rozwiązania? Oczywistym jest to iż chcemy, aby nasze **predykcje** były jak najlepsze - najbliższe prawdziwym wartościom wieku. Potrzebna jest nam jednak metoda mierzenia optymalności.
+
+W ogólnym przypadku po wybraniu modelu statystycznego wybieramy tak zwaną **funkcję straty**, której wartości bedziemy chcieli **mimimalizować**. W przypadku regresji liniowej standardowym wyborem jest **błąd kwadratowy** - suma kwadratów różnić pomiędzy prawdziwymi wartościami (wzrostu), a predykcjami z modelu. Szukamy więc $\beta_0$ i $\beta_1$, które zminimalizują błąd kwadratowy. Jest to tak zwana **Metoda najmnieszych kwadratów**.
+
+$$
+SE(\hat{\beta_0}, \hat{\beta_1}) = [wzrost - (\hat{\beta_0} + \hat{\beta_1} wiek)]^T[wzrost - (\hat{\beta_0} + \hat{\beta_1} wiek)]
+$$
+
+lub w ogólnym przypadku:
+
+$$
+SE(\hat{\hat{\beta}}) = [y - \hat{\beta} X]^T[y - \hat{\beta} X]
+$$
+gdzie $\hat{\beta} = (\hat{\beta_0}, \hat{\beta_1}, ..., \hat{\beta_p})$ jest wektorem estymowanych parametrów, $y$ oznacza wektor realizacji zmiennej objasnianem, a $X = (1, X_1, X_2, ..., X_p)$ jest realizacją predyktorów
+
+Policzmy więc błąd kwadratowy dla 3 wartości z poprzedniego przykładu:
+
+```{r message=FALSE}
+beta_0_list <- c(60, 65, 79)
+beta_1_list <- c(0.9, 0.6, -0.3)
+map2_df(beta_0_list, beta_1_list, ~ {
+  beta_0 <- .x
+  beta_1 <- .y
+  beta <- paste("beta_0:", beta_0, "beta_1:", beta_1, collapse = " ")
+  age_height %>%
+    mutate(prediction_height = beta_0 + beta_1 * age,
+           beta = beta)
+}) %>%
+  group_by(beta) %>%
+  summarise(SE = sum((height - prediction_height)^2))
+```
+
+Jak widać najmniejszy błąd dostaliśmy dla wartości $\beta_0: 65, \beta_1: 0.6$. Jak jednak dobrać $\beta_0$ i $\beta_1$ aby błąd był najmniejszy? Matematyczne rozwiązanie tego problemu dane jest wzorem:
+
+$$
+\frac{\partial SE}{\partial \hat{\beta}} [y - \hat{\beta} X]^T[y - \hat{\beta} X] = 0\\
+-2X^Ty + 2X^TX\hat{\beta}= 0\\
+\hat{\beta} = (X^TX)^{-1}X^Ty
+$$
+
+```{r}
+X <- cbind(1, age_height$age)
+y <- age_height$height
+solve(t(X)%*%X)%*%t(X)%*%y
+```
+
+w R współczynniki regresji liniowej możemy policzyc z użyciem funkcji `lm`:
+
+```{r}
+lin_reg <- lm(height ~ age, age_height)
+lin_reg
+```
+
+Zwizualizujmy wyniki:
+
+```{r}
+beta_0 <- 64.928322
+beta_1 <- 0.634965
+beta <- paste("beta_0:", round(beta_0, 2), "beta_1:", round(beta_1, 2), collapse = " ")
+best_line <-  tibble(
+  age = seq(18, 29, by = 0.1),
+  height = beta_0 + beta_1 * age,
+  beta = beta
+)
+ggplot(age_height, aes(age, height)) + theme_bw() + geom_point() +
+  geom_line(data = best_line, aes(color = beta))
+```
+
+I sprawdźmy ile wynosi błąd kwadratowy:
+
+```{r}
+sum(lin_reg$residuals^2)
+```
+
+Wartosci $\beta_0$ i $\beta_1$, które tutaj otrzymaliśmy są optymalne dla błędu kwadratowego, można by się zastanowić co by było gdybyśmy wybrali inną funkcję straty np. **błąd absolutny** - suma różnic wartości bezwzględnych pomiędzy prawdziwymi wartościami (wzrostu), a predykcjami z modelu. Błąd absolutny jest lepszym wybrem gdy mamy do czynienia z wartościami odstającymi, ale o tym później...
+
+\newpage
+
+## Metoda największej wiarygodności
+
+Metoda najmniejszych kwadratów jest bardzo prosta do zrozumienia, jednkże jej minusem jest to, że nie nie ma ona głębszych założeń np o rozkładach, przez co nie jesteśmy w stanie powiedziec o naszym modelu nic więcej. Jedną z rzeczy, które mogłbyby nas interesować to czy wyliczone współczynniki $\hat{\beta_0}$ i $\hat{\beta_1}$ są statystycznie istotone (są niezerowe) lub czy cały model jest (czy faktycznie istnieje liniowa zależność).
+
+przejdziemy teraz do **metody największej wiarygodności**, która towarzyszyć nam będzie w trakcie poznawania kolejnych modeli. Zanim zastosujemy ją do regresji liniowej, zacznijmy od prosszego modelu, w którym chcemy ustalić jakie jest prawdopodobieństwo wyrzucenia orła przy rzucie monetą (być może fałszywą). 
+
+Zacznijmy od wygenerowania przykładowych rzutów monet:
+
+```{r}
+set.seed(1234)
+coins <- rbinom(20, 1, 0.3)
+coins
+```
+
+Metoda największej wiarygodności działa następująco:
+
+1. Na samym początku musimy znaleźć **funkcję wiarygodności**. Aby tego dokonać musimy znać rozkład z jakiego pochodzą nasze dane (albo go założyć!). W ogólnym przypadku do czynienia bedziemy mieli z rodziną rozkładów parametryzowaną wektorem parametrów $\theta$. Funkcja wiarygodności definiowana jest jako:
+
+$$
+\mathscr{L_n}(\theta|x) = \prod_{i=1}^n f(x_i|\theta)
+$$
+gdzie $f(.|\theta)$ jest funkcją gęstości lub masy prawdopodobienstwa.
+
+W naszym przypadku dane do wyniki rzutu monetą, gdzie możemy otrzymać tylko orła lub reszkę. Jest to więć [rozkład Bernulliego](https://pl.wikipedia.org/wiki/Rozk%C5%82ad_zero-jedynkowy). Prawdopodobienstwo wyrzucenia orła wynosi $p$, a reszki $1 - p$, a nieznane prawdopodobieństwo $p$ jest jedynym paraetrem optymalizowanym w naszym modelu tj: $\theta = p$. Funkcja wiarygodności będzie równa:
+
+$$
+p^k (1 - p)^{N - k}
+$$
+gdzie $k$ to liczba orłów, a $N$ to liczba rzutów. W naszym konkretnym przypadku:
+
+$$
+p^3 (1 - p)^{20 - 3}
+$$
+
+2. Maksymalizujemy funkcje wiarygodności ze względu na szukany parametr $\theta$:
+
+$$
+\hat{\theta} = argmax_{\theta \in \Theta}\hat{\mathscr{L_n}}(\theta|x)
+$$
+
+Rozwiazanie znajdujemy najczęściej rozwiązując równanie wiarygodności:
+
+$$
+\frac{\partial \hat{\mathscr{L_n}}(\theta|x)}{\partial \theta} = 0
+$$
+
+```{r}
+likelihood_coins <- tibble(
+  p = seq(0, 1, by = 0.001),
+  likelihood = p^3 * (1 - p)^(20 -3)
+)
+ggplot(likelihood_coins, aes(p, likelihood)) + theme_bw() + geom_line()
+```
+
+Łatwo zauważyć, że maksimum otrzymujemy dla $\hat{p} = 0.15$
+
+```{r}
+likelihood_coins %>% filter(likelihood == max(likelihood))
+```
+
+No dobrze, ale jak to się ma do regresji liniowej (i pokrewnych modeli)? 
+
+W modelu regresji liniowej zakładamy, że **warunkowa wartość oczekiwana** (uogólniając średnia) $y|X$ (wzrost pod warunkiem wieku) pochodzi z rozkładu normalnego o średniej zaleznej liniowo od predyktorów (wieku w naszym przypadku):
+
+$$
+y|X \sim N(\mu, \sigma^2)\\
+\mu = \beta X
+$$
+
+gdzie zakładamy stałą wartość $\sigma$.
+
+\newpage
+
+Jak dokładnie rozumieć tę zależność? Myślmy o tym w ten sposób: Jeśli mam ustaloną wartość wieku dziecka np. 18 miesięcy to wzrost dzieci w wieku 18 miesięcy pochodzi z rozkładu normalnego o sredniej $\beta_0 + beta_1  18$ ($beta_0$ i $beta_1$ estymujemy metodą największej wiarygodności).
+
+![](imgs/reg_lin.png)
+
+Funkcja największej wiarygodności dla regresji liniowej dana jest wzorem:
+
+$$
+\mathscr{L}(\beta, \sigma \mid y)=\frac{1}{\left(2 \pi \sigma^{2}\right)^{n / 2}} \exp ^{-\left(\frac{1}{2 \sigma^{2}}(Y-X \beta)^{T}(Y-X \beta)\right)}
+$$
+Bardzo często zamiast maksymalizować funkcję wiarygodności możemy maksymalizować jej logarytm (**log-likelihood**) ponieważ jest to prostsza funkcja (z własności logarytmu wiemy że maksymalizacja obu jest równowazna)
+
+$$
+\ell(\beta, \sigma \mid y)=-\frac{n}{2}\left(\ln (2 \pi)+\ln \left(\sigma^{2}\right)\right)-\frac{(Y-X \beta)^{T}(Y-X \beta)}{2 \sigma^{2}}=-\frac{n}{2}\left(\ln (2 \pi)+\ln \left(\sigma^{2}\right)\right)-\frac{R S S(\beta)}{2 \sigma^{2}}
+$$
+
+Okazuje się, że w przypadku regresji liniowej log-likelihood jest "przesuniętym" błędem kwadratowym co oznacza, że **minimalizacja błądu kwadratowego jest równoważna maksymalizacji log-likelihood** - z obu metod mamy ten sam wynik.
+
+$$
+\ell(\beta, \sigma \mid y)=\frac{R S S(\beta)}{\alpha_1} + \alpha_2
+$$
+
+![](imgs/reg_lin_likelihood4.png)
+
+czyli:
+
+$$
+\hat{\beta} = (X^TX)^{-1}X^Ty\\
+\hat{\sigma} = \frac{(Y-X \beta)^{T}(Y-X \beta)}{n}
+$$
+
+Otrzymujemy ten sam wynik, jednakże mamy teraz założenia o rozkładzie, co daje nam duże możliwości:
+
+```{r}
+summary(lin_reg)
+```
+
+Jak interpretowac wyniki tego podsumowania:
+
+1. Współczynniki (Coefficients):
+
+ - $\beta_0$ (Intercept) - Jeśli wszystkie predyktory mają wartość $0$ to wartość zmiennej objasnianej bedzie równa $\beta_0$. Jednakże wartość ta nie powinna być zawsze tłumaczona (uzasadniana) ponieważ w wielu przypadkach nie ma to sensu. W naszym przykładzie (jesli się uprzeć i tłumaczyć) byłby to średni wzrost dziecka mierzony od razu po narodzinach.
+ 
+ - $\beta_1, ..., \beta_p$ - Mówią o ile wzrośnie/zmaleje wartośc zmiennej objasnianej jeśli wartość predyktora wzrośnie/zmaleje. w naszym przykładzie jesli dziecko zestarzeje się o $1$ miesiąc to jego wzrost bedzie (średnio) wiekszy o $1 * 0.6350$ cm.
+
+ - przy każdym współczynniku widnieje wartość statystyki $t$ oraz **p-value**. Dzięki założeniom normalności regresji liniowej znamy rozkład współczynników i możemy użyc t-testu by sprawdzić czy wartość współczynnika jest niezerowa (to znaczy zmienna jest istotna).
+ 
+ $$
+ \hat{\beta} \sim N(\beta, (X^TX)^{-1}\sigma^2)
+ $$
+
+Zobaczmy co się stanie gdy dodamy losową zmienną do naszego modelu:
+
+```{r}
+age_height_plus_random  <- age_height %>%
+  mutate(random = runif(nrow(age_height)))
+summary(lm(height ~ age + random, age_height_plus_random))
+```
+
+2. Multiple R-squared i Adjusted R-squared:
+
+ - Obie są metrykami dopasowania modelu. Wachają się od 0 do 1. Im blizej 1 tym lepsze dopasowanie modelu. Mierzą procent wariancji danych wyjaśnianą przez model. Adjusted R-squared bierze poprawkę na ilość predyktorów w modelu. Duże różnice między tymi współczynnikami moga wskazywać na przedopasowanie (overfitting) modelu.
+ 
+$$
+R^2 = 1 - \frac{(y-\hat{y})^T(y-\hat{y})}{(y-\bar{y})^T(y-\bar{y})}\\
+Adjusted R^2 = 1 - \frac{(y-\hat{y})^T(y-\hat{y})(n-1)}{(y-\bar{y})^T(y-\bar{y})(n-(k+1))}
+$$
+ 
+```{r}
+k <- length(lin_reg$coefficients) - 1 # Z pominięciem wyrazu wolnego
+SSE <- sum(lin_reg$residuals^2)
+n <- length(lin_reg$residuals)
+SSyy <- sum((age_height$height - mean(age_height$height))^2)
+print(paste("R-sq wynosi:", 1 - SSE/SSyy))
+print(paste("Adjusted R-sq wynosi:", 1 - (SSE/SSyy)*(n-1)/(n-(k+1))))
+```
+ 
+```{r}
+set.seed(12346)
+age_height_plus_multiple_random  <- age_height %>%
+  select(-age)
+for (i in 1:10) {
+  age_height_plus_multiple_random <- age_height_plus_multiple_random %>%
+  mutate(!!sym(paste0("random", i)) := runif(nrow(age_height)))
+}
+summary(lm(height ~ ., age_height_plus_multiple_random))
+```
+
+3. F-statistic:
+
+ - Ten test bada czy model jako całość jest istotny, a dokładniej czy dopasowanie naszego modelu jest statystycznie lepsze od dopasowania modelu bez predyktorów (dopasowanie zwykłą srednią ze zmiennej objaśnianej). Hipotera zerowa mówi, że nie jest. Możemy myślec o tym tescie jako o teście odpowiedniego doboru modelu (jeśli nasz model nie jest lepszy od zwykłej sredniej to może założenia o liniowości nie są poprawne w tym przypadku).
+ 
+```{r}
+print(paste("F-statistic:", ((SSyy-SSE)/k) / (SSE/(n-(k+1)))))
+```
