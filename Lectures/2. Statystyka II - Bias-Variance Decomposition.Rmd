@@ -1,0 +1,252 @@
+---
+title: "1. Regresja liniowa"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Statystyczna teoria decyzji
+
+## Ryzyko estymacji
+
+Przypuśćmy, że obserwujemy pewną zmienną $Y \in \mathbb{R}$ oraz zestaw predyktorów $X = (X_1, X_2, X_3, …, X_p) \in \mathbb{R^p}$ z rozkładem łącznym $\mathbb{P}(X, Y)$ . Naszym celem jest **predykcja** $Y$ za pomocą $X$. Przez predykcję mamy na myśli to, aby $f(X)$ było dostatecznie blisko $Y$, czyli:
+
+$$
+Y ≈ f(X)
+$$
+
+Pytanie brzmi co oznacza dostaecznie blisko, jak znaleźć rozwiązanie **optymalne**? Optymalność może znaczyć wiele różnych rzeczy i zależy od naszego punktu widzenia. W pierwszej kolejności musimy ustalić jak będziemy oceniać czy nasze rozwiązanie jest optymalne. Wybierzmy tak zwaną **funkcję straty**:
+
+$$
+L(Y, f(X))
+$$
+
+którą będziemy chcieli **zminimalizować**. Jedną z częściej spotykanych jest **kwadratowa funkcja straty**:
+
+$$
+L(Y, f(X)) = (Y -  f(X))^2
+$$
+
+Ponieważ nie jesteśmy w stanie zminimalizować powyższej funkcji (mamy do czynienia ze zmiennymi losowymi), zminimalizujemy jej wartość oczekiwaną, czyli tak zwaną **funkcję ryzyka**:
+
+$$
+R(f) = \mathbb{E}_{X, Y}[(Y -  f(X))^2]
+$$
+
+Pierwszym krokiem będzie przepisanie funkcji ryzyka warunkujac po $X$ (korzystamy tutaj z własności wartości oczekiwanej $\mathbb{E}(Y) = \mathbb{E}(\mathbb{E}(Y|X))$):
+
+$$
+\mathbb{E}_{X, Y}\left[(Y-f(X))^{2}\right]=\mathbb{E}_{X} \mathbb{E}_{Y \mid X}\left[(Y-f(X))^{2} \mid X=x\right]
+$$
+
+Łatwo teraz zauważyć, że minimalizacja całego wyrażenia sprowadza się do minimalizacji wewnetrznej wartości oczekiwanej, a to tak na prawdę oznacza minimalizację ryzyka punktowo dla każdego $x$. Skorzystaliśmy tutaj z ponizszego faktu:
+
+
+\begin{equation}
+\mathbb{E}[(Y-f(X))^{2} \mid X] =
+
+ \mathbb{E}(([Y-\mathbb{E}(Y \mid X)] + [\mathbb{E}(Y \mid X)-f(X)])^{2} \mid X) = \\
+ \mathbb{E}((Y-\mathbb{E}(Y \mid X))^{2} \mid X)+\mathbb{E}((\mathbb{E}(Y \mid X)-f(X))^{2} \mid X)+\\
+ 2 \mathbb{E}((Y-\mathbb{E}(Y \mid X))(\mathbb{E}(Y \mid X)-f(X)) \mid X) =\\
+ \mathbb{E}((Y-\mathbb{E}(Y \mid X))^{2} \mid X)+\mathbb{E}((\mathbb{E}(Y \mid X)-f(X))^{2} \mid X)+\\
+2(\mathbb{E}(Y \mid X)-f(X)) \mathbb{E}(Y-\mathbb{E}(Y \mid X)) \mid X)=\\
+\mathbb{E}((Y-\mathbb{E}(Y \mid X))^{2} \mid X)
++\mathbb{E}((\mathbb{E}(Y \mid X)-f(X))^{2} \mid X)
+\geq  \mathbb{E}((Y-\mathbb{E}(Y \mid X))^{2} \mid X)
+\end{equation}
+
+
+Okazuje się, ze w tym przypadku kandydatem na $f$ jest warunkowa wartość oczekiwana:
+
+$$
+f(x) = \mathbb{E}(Y| X = x)
+$$
+i nazywać będzidmy ją $funkcją regresji$. Zauważmy jeszcze, że wybór kwadratowej funkcji straty jest arbitralny. Jeśli zamiast niej wybralibśmy np. **absolutną funkcję straty**:
+
+$$
+L(Y, f(X)) = |Y -  f(X)|
+$$
+to kandydatem na $f$ byłaby **warunkowa mediana**:
+
+$$
+f(x) = median(Y| X = x)
+$$
+
+## Redukowalny i nieredukowalny błąd estymacji
+
+Do tej pory rozmawialiśmy o zmiennych losowych, jednakże w prawdziwym życiu dysponować będziemy wyłącznie realizacjami $X$ oraz $Y$, tak zwanym **zbiorem treningowym** $\mathcal{D}=\left\{\left(\mathbf{x}_{i}, y_{i}\right)\right\}_{i=1}^{N}$, a naszym celem będzie znalezienie funkcji $\hat{f}$, która jest optymalnym estymatorem funkcji regresji $f$.
+
+Przypuśćmy, że w pewien sposób otrzyaliśmy $\hat{f}$, pytanie brzmi jak dobrze estymuje ono $f$? Aby odpowiedzieć na to pytanie zdefiniujmy **oczekiwany błąd predykcji** (expected prediction error):
+
+$$
+\text{EPE}\left(Y, \hat{f}(X)\right) = \mathbb{E}_{X, Y, \mathcal{D}} \left[  \left( Y - \hat{f}(X) \right)^2 \right]
+$$
+
+Zauważmy, że warunkujemy nie tylko ze wzdlędu na $X, Y$, ale także ze względu na $\mathcal{D}$ ($\hat{f}$ jest losowa i zalezy od zbioru trenngowego $\mathcal{D}$). Tak jak poprzednio zwarunkujemy względem $X = x$, aby otrzymać oczekiwany błąd predykcji $Y$ używając $X$ gdy $X = x$:
+
+$$
+\text{EPE}\left(Y, \hat{f}(x)\right) = 
+\mathbb{E}_{Y \mid X, \mathcal{D}} \left[  \left(Y - \hat{f}(X) \right)^2 \mid X = x \right] =\\
+\mathbb{E}_{Y \mid X, \mathcal{D}} \left[  \left((Y - f(X)) + (f(X) - \hat{f}(X)) \right)^2 \mid X = x \right] =\\
+\underbrace{\mathbb{E}_{\mathcal{D}} \left[  \left(f(x) - \hat{f}(x) \right)^2 \right]}_\textrm{redukowalny bład} + 
+\underbrace{\mathbb{V}_{Y \mid X} \left[ Y \mid X = x \right]}_\textrm{nieredukowalny bład}
+$$
+
+Zauważmy, że nasz błąd został rozbity na 2 części:
+
+ - **błąd redukowalny** który w zasadzie jest oczekiwaną (średnią) kwadratową stratą w przypadku estymacji $f(x)$ używając $\hat{f}(x)$ w danym punkcie $x$. W przyszłości będziey go oznaczać mianem **błędu średniokwadratowego**:
+ 
+$$
+MSE(f(x), \hat{f}(x)) = \mathbb{E}_{\mathcal{D}} [(f(x) - \hat{f}(x))^2]
+$$
+ 
+ - **błąd nieredukowalny** będący wariancją $Y$ gdy $X = x$. Jest to szum, którego nie jesteśmy w satanie i nie powinniśmy się nauczyć. W przyszłości będziemy go nazywać mianem **czynnika Bayesa** (Bayes factor).
+
+## Dekompozycja bias-variance
+
+Po dekompozycji oczekiwanego błedu predykcji, możemy dalej zastanawiać się nad błędem redukowalnym i jego składowymi:
+
+$$
+\text{MSE}\left(f(x), \hat{f}(x)\right) = 
+\mathbb{E}_{\mathcal{D}} \left[  \left(f(x) - \hat{f}(x) \right)^2 \right] = \\
+\mathbb{E}_{\mathcal{D}} \left[  \left((f(x)  - \mathbb{E}[\hat{f}(x)]) + (\mathbb{E}[\hat{f}(x)] - \hat{f}(x)) \right)^2 \right] = \\
+\underbrace{\left(f(x) - \mathbb{E} \left[ \hat{f}(x) \right]  \right)^2}_{\text{bias}^2 \left(\hat{f}(x) \right)} +
+\underbrace{\mathbb{E} \left[ \left( \hat{f}(x) - \mathbb{E} \left[ \hat{f}(x) \right] \right)^2 \right]}_{\text{var} \left(\hat{f}(x) \right)}
+$$
+Jak widzimy błąd sredniokwadratwy rozbity został na 2 kolejne składniki:
+
+ - **obciązenie** (bias)
+ - **wariancję** (variance)
+
+$$
+\text{MSE}\left(f(x), \hat{f}(x)\right) = \text{bias}^2 \left(\hat{f}(x) \right) + \text{var} \left(\hat{f}(x) \right)
+$$
+W idealnym świecie chcielibyśmy znaleźć **nieobciazone** $\hat{f}$, które jednocześnie posiada małą wariancje, jednak często jest to niemożliwe. W praktyce zmniejszając wariancję naszego modelu, bardzo często zwiększawy obiążenie i odwrotnie. Jest to tak zwany **bias-variance tradeoff**. 
+
+Bardziej skomplikowane modele (np. sieci neuronowe) z natury są mniej obciażone jednakże posiadają większą wariancje, odwrotnie jest przy prostych modelach jak na przykład model liniowy.
+
+W kontekście regresji i klasyfikacji obciązenie modelu wzrasta gdy:
+
+ - struktura modelu jest zbyt mało elastyczna dla opisywanego zjawiska (np. model liniowy nie jest w stanie opisać zjawiska nieliniowego)
+ - model jest zbyt mocno wwygładzany / regularyzowany
+ 
+Wariancja modelu wzrasta gdy:
+
+ - struktura modelu jest zbyt elastyczna, na przykład gdy użyjemy sieci neuronowych lub modelu wielomianowego do opisania zjawiska liniowego
+ - w modelu uwzględniamy zbyt dużo zmiennych
+ 
+Na zakonczenie mozemy jeszcze zapisać pełną dekompozycję oczekiwanego błędu predykcji:
+
+$$
+\text{EPE}\left(Y, \hat{f}(x)\right) =  
+\underbrace{\text{bias}^2\left(\hat{f}(x)\right) + \text{var}\left(\hat{f}(x)\right)}_\textrm{reducible error} + \sigma^2.
+$$
+
+gdzie $\mathbb{V}[Y \mid X = x] = \sigma ^ 2$
+
+Poniższy wykres przedstawia dekompozycję bias-variance w przypadku róznego udziału obciazenia i wariancji w calości błedu
+
+```{r, fig.height = 4, fig.width = 12, echo = FALSE}
+x = seq(0.01, 0.99, length.out = 1000)
+
+par(mfrow = c(1, 3))
+par(mgp = c(1.5, 1.5, 0))
+
+b = 0.05 / x
+v = 5 * x ^ 2 + 0.5
+bayes = 4
+epe = b + v + bayes
+
+plot(x, b, type = "l", ylim = c(0, 10), col = "dodgerblue", lwd = 2, lty = 3,
+     xlab = "Model Complexity", ylab = "Error", axes = FALSE,
+     main = "More Dominant Variance")
+axis(1, labels = FALSE)
+axis(2, labels = FALSE)
+grid()
+box()
+lines(x, v, col = "darkorange", lwd = 2, lty = 4)
+lines(x, epe, col = "black", lwd = 2)
+abline(h = bayes, lty = 2, lwd = 2, col = "darkgrey")
+abline(v = x[which.min(epe)], col = "grey", lty = 3, lwd = 2)
+
+b = 0.05 / x
+v = 5 * x ^ 4 + 0.5
+bayes = 4
+epe = b + v + bayes
+
+plot(x, b, type = "l", ylim = c(0, 10), col = "dodgerblue", lwd = 2, lty = 3,
+     xlab = "Model Complexity", ylab = "Error", axes = FALSE,
+     main = "Decomposition of Prediction Error")
+axis(1, labels = FALSE)
+axis(2, labels = FALSE)
+grid()
+box()
+lines(x, v, col = "darkorange", lwd = 2, lty = 4)
+lines(x, epe, col = "black", lwd = 2)
+abline(h = bayes, lty = 2, lwd = 2, col = "darkgrey")
+abline(v = x[which.min(epe)], col = "grey", lty = 3, lwd = 2)
+
+b = 6 - 6 * x ^ (1 / 4)
+v = 5 * x ^ 6 + 0.5
+bayes = 4
+epe = b + v + bayes
+
+plot(x, b, type = "l", ylim = c(0, 10), col = "dodgerblue", lwd = 2, lty = 3,
+     xlab = "Model Complexity", ylab = "Error", axes = FALSE,
+     main = "More Dominant Bias")
+axis(1, labels = FALSE)
+axis(2, labels = FALSE)
+grid()
+box()
+lines(x, v, col = "darkorange", lwd = 2, lty = 4)
+lines(x, epe, col = "black", lwd = 2)
+abline(h = bayes, lty = 2, lwd = 2, col = "darkgrey")
+abline(v = x[which.min(epe)], col = "grey", lty = 3, lwd = 2)
+legend("topright", c("Squared Bias", "Variance", "Bayes", "EPE"), lty = c(3, 4, 2, 1),
+       col = c("dodgerblue", "darkorange", "darkgrey", "black"), lwd = 2)
+```
+
+## Overfitting i underfitting
+
+Do tej pory mówiliśmy tylko i wyłącznie o **optymalizacji**, bedącej tylko jednym z dwóch zadań modelowania statystycznego (machine learningu). Optymalizacja mówi nam o dopasowaniu modelu do pewnej konkretnej realizacji zmiennych $X$ oraz $Y$, którą nazywamy zbiorem treningowym, jednakze w rzeczywistości zależy nam na dobrej **generalizacji** naszego rozwiązania, czyli dobrego dopasowania modelu (niskiego błędu) na niezaobserwowanych realizacjach owych zmiennych - **zbiorach testowych**.
+
+Kompromis między generalizacją, a optymalizacja jest innym spojrzeniem na bias-variance tradeoff. W istocie jeśli uzywamy zbyt elastycznego modelu co może prowadzić do wysokiej wariancji jesteśmy w stanie skutecznie zmniejszyc błąd zbioru treningowego, jednakże błąd zbioru testowego moze zacząć wzrastać wraz ze złożonością modelu. Jest to tak zwany **overfitting**. W przypadku overfittingu model zaczyna "uczyć" wzorców z szumu (nieredukowalnego błędu) zbioru treningowego.
+
+Zjawiskiem odwrotnym jest **underfitting**, w którym to nasz model jest za mało elastyczny co skutkuje obserwacją wysokiego błędu na zbiorze testowym jak i treningowym. Ponizszy wykres przedstawia oba zjawiska:
+
+```{r, fig.height = 6, fig.width = 10, echo = FALSE, eval = TRUE}
+x = seq(0, 100, by = 0.001)
+f = function(x) {
+  ((x - 50) / 50) ^ 2 + 2
+}
+g = function(x) {
+  1 - ((x - 50) / 50)
+}
+
+par(mgp = c(1.5, 1.5, 0)) 
+plot(x, g(x), ylim = c(0, 3), type = "l", lwd = 2,
+     ylab = "Error", xlab = expression(Low %<-% Complexity %->% High),
+     main = "Error versus Model Complexity", col = "darkorange", 
+     axes = FALSE)
+grid()
+axis(1, labels = FALSE)
+axis(2, labels = FALSE)
+box()
+curve(f, lty = 6, col = "dodgerblue", lwd = 3, add = TRUE)
+legend("bottomleft", c("(Expected) Test", "Train"), lty = c(6, 1), lwd = 3,
+       col = c("dodgerblue", "darkorange"))
+```
+
+W praktyce zbiór treningowy dzielimy na zbiór treningowy i walidacyjny/testowy (lub stosujemy metody takie jak cross-validacja). Model trenowany (uczony) jest na części treningowej, a estypacja błędu predykcji robiona jest na części walidacyjnej/testowej w celu lepszej reprezentacji **błędu generalizacji**. 
