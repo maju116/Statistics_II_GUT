@@ -1,0 +1,92 @@
+---
+title: "3. GLM"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Uogólnione modele liniowe
+
+## Tożsamości Bartlett’a
+
+Niech dana będzie zmienna losowa $Z$ z funkcją gęstości prawdopodobieństwa $f_{\theta}(z)$ zależną od parametru $\theta$. Załóżmy, ze $f_{\theta}(z)$ jest podwójnie różniczkowalną funkcją względem $f_{\theta}(z)$ oraz jej nośnik jest taki sam dla dowolnej wartości parametru $f_{\theta}(z)$. Załóżmy także przemienność różniczkowania z całkowalnością. Pierwszą i drugą tożsamością Bartlett'a nazywamy:
+
+$$
+\mathbb{E}_{\theta} ( \frac{\partial}{\partial \theta} \log (f_{\theta}(z)))=0. \\
+\operatorname{Var}_{\theta}(\frac{\partial}{\partial \theta} \log (f_{\theta}(z)))+\mathbb{E}_{\theta}(\frac{\partial^{2}}{\partial \theta^{2}} \log (f_{\theta}(z)))=0
+$$
+
+## OEF
+
+Niech dana będzie zmienna losowa $Y$. Powiemy, że $Y$ należmy do **rodziny rozkładów wykładnicznych z nadmierną dyspersją** (OEF - overdispersed exponential family) jeżeli jej funkcję gęstości mozan zapisać jako:
+
+$$
+f(y ; \theta, \phi)=\exp \left(\frac{y \theta-b(\theta)}{a(\phi)}+c(y, \phi)\right)
+$$
+
+gdzie $\phi$ jest tak zwanym **parametrem dyspersji** związanym z wariancją, $\theta$ jest **parametrem kanonicznym**, funkcje $a(.), b(.), c(.)$ są znane.
+
+Przykładami należącymi do OEF są:
+
+ - rozkład normalny
+ - rozkład Poissona
+ - rozkład gamma
+ - rozkład Bernulliego
+ - rozkład wykładniczy
+ - rozkład dwumianowy i ujemny dwumianowy
+
+## GLM
+
+**Uogólnionym modelem liniowym** (GLM - generalized linear model) nazwiemy model, w którym:
+
+$$
+\left\{\begin{array}{l}
+y|X \sim O E F(\mu(\theta), \phi) \\
+g(\mu)=\eta=X \beta
+\end{array}\right.
+$$
+
+gdzie $X$ jest wektorem predyktorów, a $\beta$ wektorem nieznanych parametrów. 
+
+Ponieważ wiemy, że rozkład $y|X$ nalezy do OEF stosując tożsamości Bartlett'a możnemy pokazać, że:
+
+$$
+\mathbb{E}_{\theta}\left(\frac{\partial}{\partial \theta}\left(\frac{y \theta-b(\theta)}{a(\phi)}+c(y, \phi)\right)\right)=\mathbb{E}_{\theta}\left(\frac{y-b^{\prime}(\theta)}{a(\phi)}\right)=\frac{\mathbb{E}_{\theta}(y)-b^{\prime}(\theta)}{a(\phi)}=0
+$$
+
+co oznacza, że
+
+$$
+\mu = \mathbb{E}_{\theta}(y)= b'(\theta)
+$$
+oraz:
+
+$$
+\begin{array}{c}
+\operatorname{Var}_{\theta}\left(\frac{y \theta-b(\theta)}{a(\phi)}+c(y, \phi)\right)+\mathbb{E}_{\theta}\left(\frac{\partial^{2}}{\partial \theta^{2}}\left(\frac{y \theta-b(\theta)}{a(\phi)}+c(y, \phi)\right)\right)=\operatorname{Var}_{\theta}\left(\frac{y-b^{\prime}(\theta)}{a(\phi)}\right)+\mathbb{E}_{\theta}\left(-\frac{b^{\prime \prime}(\theta)}{a(\phi)}\right)= \\
+\frac{\operatorname{Var}_{\theta}(y)}{a(\phi)^{2}}-\frac{b^{\prime \prime}(\theta)}{a(\phi)}=0
+\end{array}
+$$
+co oznacza, że:
+
+$$
+\operatorname{Var}_{\theta}(y)=a(\phi)b^{\prime \prime}(\theta)
+$$
+Powyższe równanie pozwala na zdefiniowanie relacji między wariancją a wartościa oczekiwną w rodzinie rozkładów OEF:
+
+$$
+\operatorname{Var}(y)=a(\phi) V(\mu)=a(\phi) b^{\prime \prime}\left(b^{\prime-1}(\mu)\right)
+$$
+
