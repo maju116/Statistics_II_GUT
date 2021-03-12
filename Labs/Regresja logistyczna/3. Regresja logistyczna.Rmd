@@ -51,7 +51,6 @@ Metody dzięki którym lekarze mogą rozpoznać rozwój raka sutka możemy podzi
 
 Leczenie raka piersi jest procesem wieloetapowym. Prowadzone powinno być przez zespół w składzie lekarskim składającym się m.in z chirurga onkologicznego, onkologa klinicznego, onkologa radioterapeuty, rehabilitanta oraz psychologa klinicznego.Takowy zespól ocenia kliniczny stopień zaawansowania rozwoju nowotworu. W zależności od niego wybierane jest postępowanie pierwotne–operacyjne, leczenie przedoperacyjne czy też leczenie paliatywne. Po ewentualnej operacji oceniany jest patologiczny stopień zaawansowania nowotworu, typ histologiczny raka oraz występowanie ważnych klinicznie receptorów – estrogenowych, progesteronowych, nadekspresji receptora dla nabłonkowego czynnika wzrostu (HER2).
 
-
 Po zabiegu operacyjnym następuje ocena histopatologiczna usuniętego preparatu. W zależności od patologicznego stopnia zaawansowania oraz stanu pacjenta wybierana jest strategia leczenia uzupełniającego. Leczenie to możemy podzielić na różne typy:
 
  - radioterapia
@@ -269,8 +268,8 @@ W naszym modelu znajdują się zmienne nieistotne, to co moglibyśmy zrobić to 
 
 Jak więc automatycznie stworzyć model ?
 
-1. Można sprawdzić wszystkie kombinacje zmiennych, których jest $2^N$ - kiepski pomysł przy dużej liczbie zmiennych
-2. Model regresji krokowej (dodajemy lub odejmujemy jedna zmienną na raz). Model wybierany jest pod wzgledem kryterium informacyjnego $AIC = -2\ell +2N$ - im mniejsze tym lepiej.
+1. Można sprawdzić wszystkie kombinacje zmiennych, których jest $2^p$ - kiepski pomysł przy dużej liczbie zmiennych
+2. Model regresji krokowej (dodajemy lub odejmujemy jedna zmienną na raz). Model wybierany jest pod wzgledem kryterium informacyjnego $AIC = -2\ell +2p$ - im mniejsze tym lepiej.
 3. Uzyć regularyzacji LASSO - kolejne zajęcia.
 
 ```{r}
@@ -331,7 +330,8 @@ cut05 <- wdbc_predictions %>%
   table()
 cut05
 ```
-Najprostsza miara do sprawdzenia to Accuracy = (TP + TN) / ALL
+
+Najprostsza miara do sprawdzenia to $Accuracy = (TP + TN) / ALL$
 
 ```{r}
 # TP - True Positives
