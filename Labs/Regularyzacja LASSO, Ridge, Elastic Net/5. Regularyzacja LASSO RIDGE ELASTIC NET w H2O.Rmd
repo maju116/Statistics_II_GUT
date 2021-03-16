@@ -1,0 +1,212 @@
+---
+title: "4. Regularyzacja LASSO/RIDGE/ELASTIC NET w H2O"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(h2o)
+```
+
+# Wstęp
+
+Zacznijmy od wczytania zbioru danych bankowych. Naszym zadaniem będzie klasyfikacja tranzakcji i odnalezienie oszustw:
+
+```{r}
+load("creditcard.RData")
+creditcard_train_Y <- factor(creditcard_train_Y)
+table(creditcard_train_Y)
+creditcard_test_Y <- factor(creditcard_test_Y)
+table(creditcard_test_Y)
+```
+
+Zbiór ten zawiera 29 predyktorów (28 zakodowanych zmiennych bankowych przy pomocy PCA + znormalizowaną wielkość tranzakcji). Jest on ekstremalnie niezbalansowany.
+
+```{r}
+colSums(is.na(creditcard_train_X))
+colSums(is.na(creditcard_test_X))
+```
+
+Zacznijmy od wizualizacji
+
+```{r}
+creditcard_temp <- creditcard_train_X %>%
+  as.tibble() %>%
+  bind_rows(as.tibble(creditcard_test_X)) %>%
+  mutate(fraud = factor(c(creditcard_train_Y, creditcard_test_Y)))
+ggplot(creditcard_temp, aes(x = V1, y = V2, color = fraud)) + geom_point() + theme_bw()
+ggplot(creditcard_temp, aes(x = V1, y = V28, color = fraud)) + geom_point() + theme_bw()
+ggplot(creditcard_temp, aes(x = V1, y = Amount, color = fraud)) + geom_point() + theme_bw()
+```
+
+Ponieważ zmienne są zakodowane i jest ich sporo może być trudno wyciągnąć jakies informacje z wykresów.
+
+Tak jak poprzednio zacznijmy od modelu referencyjnego - regresji logistycznej:
+
+```{r}
+set.seed(1234)
+creditcard_reg_log <- glm(formula = creditcard_train_Y ~ creditcard_train_X, family = binomial(link = "logit"))
+summary(creditcard_reg_log)
+```
+
+Jak widać otrzymaliśmy duzą ilość niesistotnych mziennych. Naszym kolejnym krokiem powinno być odrzucenie nieistotnych zmiennych (pojedynczo!), sprawdzenie współliniowości miedzy zmiennymi, do czasu aż dojdziemy do modelu, który jest poprawnie skonstruowany i widać w nim objawów overfittingu. 
+
+Zamiast robić to wszystko ręcznie i krok po kroku, spróbujmy czegoś innego.
+
+# Regularyzacja LASSO, Ridge i Elastic Net w H2O
+
+```{r}
+creditcard_train <- creditcard_train_X %>%
+  bind_cols(fraud = creditcard_train_Y)
+creditcard_test <- creditcard_test_X %>%
+  bind_cols(fraud = creditcard_test_Y)
+
+# Tworzymy połączenie z H2O
+localH2O <- h2o.init(ip = "localhost",
+                     port = 54321,
+                     nthreads = -1,
+                     min_mem_size = "20g")
+
+# Przenosimy dane do H2O
+creditcard_train_h2o <- as.h2o(creditcard_train, destination_frame = "creditcard_train")
+creditcard_test_h2o <- as.h2o(creditcard_test, destination_frame = "creditcard_test")
+
+h2o.ls()
+```
+
+Następnie zbudujemy 3 modele:
+
+```{r}
+# LASSO
+card_lasso_balanced <- h2o.glm(x = 1:28, # Nazwy lub indeksy
+                               y = "fraud", # Nazwa lub indeks
+                               training_frame = "creditcard_train",
+                               family = "binomial",
+                               alpha = 1,
+                               lambda_search = TRUE,
+                               model_id = "card_lasso_balanced",
+                               nfolds = 5,
+                               balance_classes = TRUE, # Over/under sampling
+                               class_sampling_factors = c(0.5, 0.5),
+                               seed = 1234,
+                               score_each_iteration = TRUE)
+
+# Ridge
+card_ridge_balanced <- h2o.glm(x = 1:28, # Nazwy lub indeksy
+                               y = "fraud", # Nazwa lub indeks
+                               training_frame = "creditcard_train",
+                               family = "binomial",
+                               alpha = 0,
+                               lambda_search = TRUE,
+                               model_id = "card_ridge_balanced",
+                               nfolds = 5,
+                               balance_classes = TRUE, # Over/under sampling
+                               class_sampling_factors = c(0.5, 0.5),
+                               seed = 1234,
+                               score_each_iteration = TRUE)
+
+# Elastic Net
+card_elastic_net_balanced <- h2o.glm(x = 1:28, # Nazwy lub indeksy
+                               y = "fraud", # Nazwa lub indeks
+                               training_frame = "creditcard_train",
+                               family = "binomial",
+                               alpha = 0.5,
+                               lambda_search = TRUE,
+                               model_id = "card_elastic_net_balanced",
+                               nfolds = 5,
+                               balance_classes = TRUE, # Over/under sampling
+                               class_sampling_factors = c(0.5, 0.5),
+                               seed = 1234,
+                               score_each_iteration = TRUE)
+```
+
+Sprawdźmy teraz jak wyglądają współczynniki naszych modeli:
+
+```{r}
+h2o.coef(card_lasso_balanced)
+h2o.coef(card_ridge_balanced)
+h2o.coef(card_elastic_net_balanced)
+```
+
+Oraz miary dopasowania:
+
+```{r}
+pred_lasso_balanced <- h2o.predict(card_lasso_balanced, creditcard_test_h2o)
+perf_lasso_balanced <- h2o.performance(card_lasso_balanced, creditcard_test_h2o)
+
+h2o.auc(perf_lasso_balanced)
+h2o.giniCoef(perf_lasso_balanced)
+h2o.aic(card_lasso_balanced)
+
+cm_lasso_balanced <- h2o.confusionMatrix(card_lasso_balanced,
+                                         newdata = creditcard_test_h2o,
+                                         metrics = "f2")
+
+fpr <- h2o.fpr(perf_lasso_balanced)[['fpr']]
+tpr <- h2o.tpr(perf_lasso_balanced)[['tpr']]
+ggplot(data.frame(fpr = fpr, tpr = tpr), aes(fpr, tpr)) +
+  geom_line() + theme_bw()
+
+card_lasso_balanced@model$lambda_best
+
+pred_ridge_balanced <- h2o.predict(card_ridge_balanced, creditcard_test_h2o)
+perf_ridge_balanced <- h2o.performance(card_ridge_balanced, creditcard_test_h2o)
+
+h2o.auc(perf_ridge_balanced)
+h2o.giniCoef(perf_ridge_balanced)
+h2o.aic(card_ridge_balanced)
+
+cm_ridge_balanced <- h2o.confusionMatrix(card_ridge_balanced,
+                                         newdata = creditcard_test_h2o,
+                                         metrics = "f2")
+
+fpr <- h2o.fpr(perf_ridge_balanced)[['fpr']]
+tpr <- h2o.tpr(perf_ridge_balanced)[['tpr']]
+ggplot(data.frame(fpr = fpr, tpr = tpr), aes(fpr, tpr)) +
+  geom_line() + theme_bw()
+
+card_ridge_balanced@model$lambda_best
+
+pred_elastic_net_balanced <- h2o.predict(card_elastic_net_balanced, creditcard_test_h2o)
+perf_elastic_net_balanced <- h2o.performance(card_elastic_net_balanced, creditcard_test_h2o)
+
+h2o.auc(perf_elastic_net_balanced)
+h2o.giniCoef(perf_elastic_net_balanced)
+h2o.aic(card_elastic_net_balanced)
+
+cm_elastic_net_balanced <- h2o.confusionMatrix(card_elastic_net_balanced,
+                                         newdata = creditcard_test_h2o,
+                                         metrics = "f2")
+
+fpr <- h2o.fpr(perf_elastic_net_balanced)[['fpr']]
+tpr <- h2o.tpr(perf_elastic_net_balanced)[['tpr']]
+ggplot(data.frame(fpr = fpr, tpr = tpr), aes(fpr, tpr)) +
+  geom_line() + theme_bw()
+
+card_elastic_net_balanced@model$lambda_best
+```
+
+Na zakończenie zapiszmy modele:
+
+```{r}
+h2o.saveModel(card_lasso_balanced, path = getwd())
+h2o.saveModel(card_ridge_balanced, path = getwd())
+h2o.saveModel(card_elastic_net_balanced, path = getwd())
+```
+
+I zakmnijmy cluster:
+
+```{r}
+h2o.shutdown(prompt = FALSE)
+```
