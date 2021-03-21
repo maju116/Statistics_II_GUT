@@ -17,6 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tree)
 library(randomForest)
+library(gbm)
 library(plotly)
 ```
 
@@ -98,8 +99,8 @@ Oczywiście pojawia się nastepujace pytanie: kiedy powinno się przerwać podzi
 
 ```{r, message=FALSE, warning=FALSE}
 cart_model2 <- tree(Salary ~ Years + Hits,
-                   data = baseball,
-                   mindev = 0.001)
+                    data = baseball,
+                    mindev = 0.001)
 cart_model2
 
 data3d2 <- expand.grid(seq(0, 10, by = 0.1), seq(0, 30, by = 0.1)) %>%
@@ -114,10 +115,10 @@ plot_ly(data = data3d2, x = ~Years, y = ~Hits, z = ~Salary,
 
 Istnieje kilka możliwości odpowiedzi na to pytanie:
 
- - możemy zaprzestać podziału po ustalonej z góry liczbie podziałów
- - możemy ustalić minimalną liczbę obserwacji w liściu (nie mniej niż N)
- - możemy zaprzestać podziału jeśli MSE (lub inna wybrana przez nas wartość funkcji straty) nie zmniejszy się istotnie dzieki podziałowi - podział nie daje nam lepszej predykcji
- 
+- możemy zaprzestać podziału po ustalonej z góry liczbie podziałów
+- możemy ustalić minimalną liczbę obserwacji w liściu (nie mniej niż N)
+- możemy zaprzestać podziału jeśli MSE (lub inna wybrana przez nas wartość funkcji straty) nie zmniejszy się istotnie dzieki podziałowi - podział nie daje nam lepszej predykcji
+
 W powyzszym przykładzie estymator w każdym liściu był po prostu średnią ze wszystkich punktów w danym liściu. Nie musi tak jednak być, moglibyśmy na przykład w każdym liściu uzyć regresji liniowej albo innego alrogytmu.
 
 ## Ensemblers
@@ -129,19 +130,19 @@ Jednym z rozwiązan tego problemu jest użycie bardziej elastycznego modelu jak 
 Najpopularniejsze metody tworzenia ensemblerów to:
 
 1. **Metody niehybrydowe** – korzystają z jednego rodzaju algorytmu:
-   a) **Bootstrap agregation (bagging)**
-       - **Random Forest** jako specjalny przypadek
-   b) **Boosting**
-       - **Gradient Boosting**
-       - AdaBoost
-       - BrownBoost
-       - CoBoosting
-       - **XGBoost**
+a) **Bootstrap agregation (bagging)**
+- **Random Forest** jako specjalny przypadek
+b) **Boosting**
+- **Gradient Boosting**
+- AdaBoost
+- BrownBoost
+- CoBoosting
+- **XGBoost**
 2. **Metody hybrydowe** – korzystają z kilku rodzajów algorytmów
-    a) **Stacking (stacked generalization)**
-    b) Cascading
-    c) Mixture of Experts
- 
+a) **Stacking (stacked generalization)**
+b) Cascading
+c) Mixture of Experts
+
 ## Bagging
 
 **Bagging** to metoda, w której kolejne modele liczone są **równolegle** na **próbkach bootstrapowych**. Końcowy wynik jest uśrednieniem (lub modalną) wszystkich modeli. Bagging nie zmienia biasu, jednakże znacznie redykuje wariancje rozwiązania, dlatego też do baggingu jako weak learners nalezy używać modele o stosunkowo wysokiej wariancji.
@@ -162,20 +163,20 @@ $$
 ```{r, message=FALSE, warning=FALSE}
 ## Bagging (bootstrap aggregating)
 bootstrap_datas <- 1:100 %>% map(~ sample(1:nrow(baseball), nrow(baseball), TRUE) %>%
-              baseball[., ])
+                                   baseball[., ])
 bootstrap_trees <- bootstrap_datas %>% map(~ tree(Salary ~ Years + Hits,
-                             data = .x))
+                                                  data = .x))
 bootstrap_trees2 <- bootstrap_datas %>% map(~ tree(Salary ~ Years + Hits,
-                                                  data = .x,
-                                                  mindev = 0.001))
+                                                   data = .x,
+                                                   mindev = 0.001))
 grid <- expand.grid(seq(0, 10, by = 0.1), seq(0, 30, by = 0.1)) %>%
   dplyr::rename(Years = Var1, Hits = Var2)
 bagging_predictions <- bind_cols(grid, Salary = map(bootstrap_trees , ~ predict(.x, grid)) %>%
-              do.call(cbind, .) %>% apply(., 1, mean)) %>%
+                                   do.call(cbind, .) %>% apply(., 1, mean)) %>%
   mutate(col = "Predicted") %>%
   bind_rows(., baseball %>% mutate(col = "Real"))
 bagging_predictions2 <- bind_cols(grid, Salary = map(bootstrap_trees2 , ~ predict(.x, grid)) %>%
-                                   do.call(cbind, .) %>% apply(., 1, mean)) %>%
+                                    do.call(cbind, .) %>% apply(., 1, mean)) %>%
   mutate(col = "Predicted") %>%
   bind_rows(., baseball %>% mutate(col = "Real"))
 
@@ -186,14 +187,14 @@ plot_ly(data = bagging_predictions2, x = ~Years, y = ~Hits, z = ~Salary,
         size = I(4), color = ~col, colors = c("green", "red"))
 ## Random Forests
 rf_model <- randomForest(Salary ~ Years + Hits,
-                   data = baseball,
-                   importance = TRUE,
-                   ntree = 10)
-
-rf_model2 <- randomForest(Salary ~ Years + Hits,
                          data = baseball,
                          importance = TRUE,
-                         ntree = 100)
+                         ntree = 10)
+
+rf_model2 <- randomForest(Salary ~ Years + Hits,
+                          data = baseball,
+                          importance = TRUE,
+                          ntree = 100)
 
 data3drf <- expand.grid(seq(0, 10, by = 0.1), seq(0, 30, by = 0.1)) %>%
   dplyr::rename(Years = Var1, Hits = Var2) %>%
@@ -233,6 +234,37 @@ $$
 F(x) = f(x) + \sum_{k=1}^{K} LR^{a(k)} g_k(x)
 $$
 ![](imgs/gb.png)
+
+```{r, message=FALSE, warning=FALSE}
+## Gradient Boosted Machine
+gbm_model <- gbm(Salary ~ Years + Hits,
+                 data = baseball,
+                 distribution = "gaussian",
+                 n.trees = 10)
+
+gbm_model2 <- gbm(Salary ~ Years + Hits,
+                  data = baseball,
+                  distribution = "gaussian",
+                  n.trees = 100)
+
+data3dgbm <- expand.grid(seq(0, 10, by = 0.1), seq(0, 30, by = 0.1)) %>%
+  dplyr::rename(Years = Var1, Hits = Var2) %>%
+  bind_cols(., Salary = predict(gbm_model, .)) %>%
+  mutate(col = "Predicted") %>%
+  bind_rows(., baseball %>% mutate(col = "Real"))
+data3dgbm2 <- expand.grid(seq(0, 10, by = 0.1), seq(0, 30, by = 0.1)) %>%
+  dplyr::rename(Years = Var1, Hits = Var2) %>%
+  bind_cols(., Salary = predict(gbm_model2, .)) %>%
+  mutate(col = "Predicted") %>%
+  bind_rows(., baseball %>% mutate(col = "Real"))
+
+plot_ly(data = data3dgbm, x = ~Years, y = ~Hits, z = ~Salary,
+        size = I(4), color = ~col, colors = c("green", "red"))
+
+plot_ly(data = data3dgbm2, x = ~Years, y = ~Hits, z = ~Salary,
+        size = I(4), color = ~col, colors = c("green", "red"))
+```
+
 
 ## Stacking
 
