@@ -1,0 +1,224 @@
+---
+title: "7. Ensemblery w H2O"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+Sys.setlocale("LC_MESSAGES", 'en_GB.UTF-8')
+Sys.setenv(LANG = "en_US.UTF-8")
+library(tidyverse)
+library(h2o)
+```
+
+# wstęp
+
+Zobaczmy jak w H2O zbudować **Ensemblery** na podstawie zbioru danych o oszustwach bankowych:
+
+```{r}
+load("creditcard.RData")
+creditcard_train_Y <- factor(creditcard_train_Y)
+table(creditcard_train_Y)
+creditcard_test_Y <- factor(creditcard_test_Y)
+table(creditcard_test_Y)
+
+validation_index <- sample(1:nrow(creditcard_train_X), nrow(creditcard_test_X))
+
+creditcard_train <- creditcard_train_X[-validation_index, ] %>%
+  bind_cols(fraud = creditcard_train_Y[-validation_index])
+creditcard_valid <- creditcard_train_X[validation_index, ] %>%
+  bind_cols(fraud = creditcard_train_Y[validation_index])
+creditcard_test <- creditcard_test_X %>%
+  bind_cols(fraud = creditcard_test_Y)
+
+# Tworzymy połączenie z H2O
+localH2O <- h2o.init(ip = "localhost",
+                     port = 54321,
+                     nthreads = -1,
+                     min_mem_size = "20g")
+
+# Przenosimy dane do H2O
+creditcard_train_h2o <- as.h2o(creditcard_train, destination_frame = "creditcard_train")
+creditcard_valid_h2o <- as.h2o(creditcard_test, destination_frame = "creditcard_valid")
+creditcard_test_h2o <- as.h2o(creditcard_test, destination_frame = "creditcard_test")
+
+h2o.ls()
+```
+
+Zacznijmy od algorytmu **Random Forest**:
+
+```{r}
+rf1 <- h2o.randomForest(
+  x = 1:28, # Predyktory
+  y = "fraud", # Zmianna objaśniana
+  training_frame = creditcard_train_h2o, # Zbiór treningowy
+  validation_frame = creditcard_valid_h2o, # Zbiór walidacyjny
+  model_id = "rf1", # Klucz modelu w H2O
+  ntrees = 10, # Ilość dzrzew klasyfikacyjnych
+  max_depth = 10, # Maksymalna wielkość drzewa
+  mtries = 2, # Liczba losowo wybranych kolumn w splicie
+  sample_rate = 0.6320000291, # Prawdopodbieństwo ponownego wylosowania danej obserwacji,
+  min_rows = 1, # Minimum obserwacji per liść
+  seed = 1234
+)
+
+rf1_perf <- h2o.performance(rf1, newdata = creditcard_test_h2o)
+h2o.auc(rf1_perf)
+h2o.confusionMatrix(rf1_perf, metric = "f2")
+```
+
+W kolejnym modelu zwiększy liczbę/głębokość drzew, dodajmy CV oraz over/under-sampling:
+
+```{r}
+rf2 <- h2o.randomForest(
+  x = 1:28,
+  y = "fraud",
+  training_frame = creditcard_train_h2o,
+  validation_frame = creditcard_valid_h2o,
+  model_id = "rf2",
+  ntrees = 200, # Zwiększamy
+  max_depth = 30, # Zwiększamy
+  mtries = 5,
+  sample_rate = 0.6320000291,
+  min_rows = 1,
+  seed = 1234,
+  balance_classes = TRUE, # Over/under-sampling
+  nfolds = 5, # Walidacja CV5
+  fold_assignment = "Modulo", # Co piąta obserwacja do innego foldu
+  keep_cross_validation_predictions = TRUE
+)
+
+rf2_perf <- h2o.performance(rf2, newdata = creditcard_test_h2o)
+h2o.auc(rf2_perf)
+h2o.confusionMatrix(rf2_perf, metrics = "f2")
+```
+
+Jeśli chcielibyśmy sprawdzić dużo większą liczbę hiperparametrów to oczywiście nie będziemy tego robić budując modele po kolei. do wyboru hiperparametrów możmy użyć metody **grid search**, która sprawdzi wszystkie kombinacje wskazanych przez nas wartości hiperparametrów:
+
+```{r}
+hyper_params <- list(
+  ntrees = c(10, 50),
+  max_depth =  c(5, 10, 20, 30),
+  mtries = c(2, 5, 10, 20)
+)
+
+rf_grid <- h2o.grid(
+  algorithm = "randomForest",
+  grid_id = "rf_grid",
+  hyper_params = hyper_params,
+  x = 1:28,
+  y = "fraud",
+  training_frame = creditcard_train_h2o,
+  validation_frame = creditcard_valid_h2o,
+  seed = 1234,
+  balance_classes = TRUE,
+  nfolds = 5,
+  fold_assignment = "Modulo",
+  keep_cross_validation_predictions = TRUE,
+  stopping_metric = "logloss",
+  stopping_tolerance = 0.01,
+  stopping_rounds = 2 # Jeśli logloss nie zmniejszy się średnio o 0.01 po dodaniu
+  # kolejnych 2 drzew to przestajemy dodawać.
+)
+
+h2o.getGrid("rf_grid",
+            sort_by = "f2",
+            decreasing = TRUE)
+rf_grid@model_ids %>% map(~ h2o.saveModel(h2o.getModel(.x), path = "models/"))
+```
+
+Kolejnym ensemblerem opartym na drzewach jest **Gradient Boosted Machines**:
+
+```{r}
+gbm1 <- h2o.gbm(
+  x = 1:28,
+  y = "fraud",
+  training_frame = creditcard_train_h2o,
+  validation_frame = creditcard_valid_h2o,
+  model_id = "gbm1",
+  ntrees = 10, # Ilość iteracji dzrzew klasyfikacyjnych
+  max_depth = 10,
+  learn_rate = 0.1, # Jak ważne są kolejne dodane predykcje na gradientach:
+  learn_rate_annealing = 1, # f_0 + 0.1^1*f_1 + 0.1^2*f_2 + 0.1^3*f_3 + ...
+  seed = 1234
+)
+
+gbm1_perf <- h2o.performance(gbm1, newdata = creditcard_test_h2o)
+h2o.auc(gbm1_perf)
+h2o.confusionMatrix(gbm1_perf, metrics = "f2")
+```
+
+Analogiczne również tu możemy dopasować hiperparametry:
+
+```{r}
+gbm2 <- h2o.gbm(
+  x = 1:28,
+  y = "fraud",
+  training_frame = creditcard_train_h2o,
+  validation_frame = creditcard_valid_h2o,
+  model_id = "gbm2",
+  balance_classes = TRUE,
+  nfolds = 5,
+  fold_assignment = "Modulo",
+  keep_cross_validation_predictions = TRUE,
+  ntrees = 100, # Zwiększamy
+  max_depth = 10,
+  learn_rate = 0.15, # Zwiększamy
+  learn_rate_annealing = 0.1, # Zmniejszamy
+  stopping_rounds = 2, # Dodajemy stopowanie
+  stopping_tolerance = 0.01,
+  seed = 1234
+)
+
+gbm2_perf <- h2o.performance(gbm2, newdata = creditcard_test_h2o)
+h2o.auc(gbm2_perf)
+h2o.confusionMatrix(gbm2_perf, metrics = "f2")
+```
+
+Poza grid searchem mamy także mozliwosć uruchomienia **random search**:
+
+```{r}
+hyper_params <- list(
+  ntrees = c(20, 50),
+  max_depth =  c(5, 10, 20, 30),
+  learn_rate = seq(0.05, 0.2, by = 0.05),
+  learn_rate_annealing = seq(0.05, 1, by = 0.05)
+)
+
+gbm_grid <- h2o.grid(
+  algorithm = "gbm",
+  grid_id = "gbm_grid",
+  x = 1:28,
+  y = "fraud",
+  training_frame = creditcard_train_h2o,
+  validation_frame = creditcard_valid_h2o,
+  seed = 1234,
+  balance_classes = TRUE,
+  nfolds = 5,
+  fold_assignment = "Modulo",
+  keep_cross_validation_predictions = TRUE,
+  stopping_metric = "logloss",
+  stopping_tolerance = 0.01,
+  stopping_rounds = 2,
+  search_criteria = list(strategy = "RandomDiscrete", # Random Search
+                         max_runtime_secs = 600,
+                         max_models = 10,
+                         seed = 1234)
+)
+
+h2o.getGrid("gbm_grid",
+            sort_by = "f2",
+            decreasing = TRUE)
+
+gbm_grid@model_ids %>% map(~ h2o.saveModel(h2o.getModel(.x), path = "models/"))
+```
+

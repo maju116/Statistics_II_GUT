@@ -133,7 +133,7 @@ print(paste("Suma kwardratów reszt dla zb. treningowego:", sum((gene_data_train
 print(paste("Suma kwardratów reszt dla zb. testowego:", sum((gene_data_test_y - gene_data_ridge_predicted_test)^2)))
 ```
 
-Regresja grzbietowa jest przykładem **regularyzacji normą L^q** gdzie $g=2$:
+Regresja grzbietowa jest przykładem **regularyzacji normą L^q** gdzie $q=2$:
 
 $$
 \hat{\beta} = agrmin_{\beta} (-\ell(\beta) + \lambda\sum_{i=1}^p |\beta_p|^q)
@@ -190,7 +190,7 @@ Jak widzimy dopasowanie jest jeszcze lepsze w przypadku LASSO niż regresji grzb
 LASSO daje z reguły lepsze wyniki gdy w naszym zbiorze mamy nieistotne predyktory (zmienne które nie wnoszą informacji do modelu), LASSO potrafi się ich pozbyć. Regresja grzbietowa działa lepiej gdy predyktory są istotne. Jeśli chcemy korzystać z zalet obu podejść możemy użyć regresji **Elastic Net**:
 
 $$
-\hat{\beta} = agrmin_{\beta} (-\ell(\beta) + \lambda(\sum_{i=1}^p \alpha|\beta_p| + (1-\alpha)\sum_{i=1}^p \beta_p^2))
+\hat{\beta} = agrmin_{\beta} (-\ell(\beta) + \lambda(\alpha\sum_{i=1}^p |\beta_p| + (1-\alpha)\sum_{i=1}^p \beta_p^2))
 $$
 ```{r}
 gene_data_elastic_net <- cv.glmnet(gene_data_train_x, gene_data_train_y, type.measure = "mse", 
