@@ -65,7 +65,7 @@ rf1 <- h2o.randomForest(
   model_id = "rf1", # Klucz modelu w H2O
   ntrees = 10, # Ilość dzrzew klasyfikacyjnych
   max_depth = 10, # Maksymalna wielkość drzewa
-  mtries = 2, # Liczba losowo wybranych kolumn w splicie
+  mtries = 2, # Liczba losowo wybranych zmiennych w splicie
   sample_rate = 0.6320000291, # Prawdopodbieństwo ponownego wylosowania danej obserwacji,
   min_rows = 1, # Minimum obserwacji per liść
   seed = 1234
@@ -75,6 +75,12 @@ rf1_perf <- h2o.performance(rf1, newdata = creditcard_test_h2o)
 h2o.auc(rf1_perf)
 h2o.confusionMatrix(rf1_perf, metric = "f2")
 ```
+
+Wyjaśnijmy jeszcze domyślną wartość agrumentu `sample_rate`. Zauważmy, że prawdopodobieństwo nielylosowania w próbie bootstrapowej obserwcjiz pośród $n$ możliwych wynosi:
+
+$$
+\lim_{n\to\infty} (1-\frac{1}{n})^n = \frac{1}{e}≈ 0.368
+$$
 
 W kolejnym modelu zwiększy liczbę/głębokość drzew, dodajmy CV oraz over/under-sampling:
 
@@ -210,8 +216,8 @@ gbm_grid <- h2o.grid(
   stopping_tolerance = 0.01,
   stopping_rounds = 2,
   search_criteria = list(strategy = "RandomDiscrete", # Random Search
-                         max_runtime_secs = 600,
-                         max_models = 10,
+                         max_runtime_secs = 6000,
+                         max_models = 100,
                          seed = 1234)
 )
 
@@ -220,5 +226,54 @@ h2o.getGrid("gbm_grid",
             decreasing = TRUE)
 
 gbm_grid@model_ids %>% map(~ h2o.saveModel(h2o.getModel(.x), path = "models/"))
+```
+
+W H2O możemy także użyć **Super Learner'a - Stacking**
+
+```{r}
+stack1 <- h2o.stackedEnsemble(
+  x = 1:28,
+  y = "fraud",
+  training_frame = creditcard_train_h2o,
+  validation_frame = creditcard_valid_h2o,
+  model_id = "stack1",
+  base_models = list("rf2", "gbm2") # Lista modelu do stackingu
+)
+
+stack1_perf <- h2o.performance(stack1, newdata = creditcard_test_h2o)
+h2o.auc(stack1_perf)
+h2o.confusionMatrix(stack1_perf, metrics = "f2")
+
+models_ids <- list.files("models/")
+models_ids %>% map(~ h2o.loadModel(path = paste0("models/", .x)))
+stack2 <- h2o.stackedEnsemble(
+  x = 1:28,
+  y = "fraud",
+  training_frame = creditcard_train_h2o,
+  validation_frame = creditcard_valid_h2o,
+  model_id = "stack4",
+  base_models = models_ids %>% map(~ .x)
+)
+
+stack2_perf <- h2o.performance(stack2, newdata = creditcard_test_h2o)
+h2o.auc(stack2_perf)
+h2o.confusionMatrix(stack2_perf, metrics = "f2")
+```
+
+Jeśli nie chcemy robić nic, możemy także uzyć **AutoML**
+
+```{r}
+aml <- h2o.automl(x = 1:28,
+                  y = "fraud",
+                  training_frame = creditcard_train_h2o,
+                  validation_frame = creditcard_valid_h2o,
+                  leaderboard_frame = creditcard_test_h2o,
+                  nfolds = 5,
+                  seed = 1234,
+                  max_runtime_secs = 300
+)
+
+aml@leaderboard
+aml@leader
 ```
 
