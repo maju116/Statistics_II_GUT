@@ -17,6 +17,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(plotly)
 library(ggbiplot)
+library(Rtsne)
+library(gridExtra)
 ```
 
 # Redukcja wymiarów
@@ -222,4 +224,207 @@ Wady PCA:
  - działa tylko dla liniowych danych
  - trudność w interpretacji (każda składowa zalezna od każdej orginalnej zmiennej - alternatywą jest **regularized PCA**)
  
- Główne składowe mogą zostać uzyte jako nowe zmienne w dalszej analizie, np. w regresji lub klasyfikacji. jest to tak zwana **principal components regression/classification**
+Główne składowe mogą zostać uzyte jako nowe zmienne w dalszej analizie, np. w regresji lub klasyfikacji. jest to tak zwana **principal components regression/classification**
+ 
+Na zakończenie pozostaje nam jeszcze zobaczyć jak PCA policzyć ręcznie:
+
+```{r}
+# Skalowanie zmiennych
+iris_data <- iris %>% select(-Species) %>% scale(center = TRUE, scale = TRUE) %>% as.data.frame()
+# Wyliczenie macierzy kowariancji/korelacji
+cor_iris_data <- cor(iris_data)
+# Wyliczenie wartości własnych
+eign_iris_data <- eigen(cor_iris_data)
+# Wyliczenie składowych
+pc1 <- iris_data$Sepal.Length * eign_iris_data$vectors[1,1] + iris_data$Sepal.Width * eign_iris_data$vectors[2,1] +
+  iris_data$Petal.Length * eign_iris_data$vectors[3,1] + iris_data$Petal.Width * eign_iris_data$vectors[4,1]
+
+pc2 <- iris_data$Sepal.Length * eign_iris_data$vectors[1,2] + iris_data$Sepal.Width * eign_iris_data$vectors[2,2] +
+  iris_data$Petal.Length * eign_iris_data$vectors[3,2] + iris_data$Petal.Width * eign_iris_data$vectors[4,2]
+
+pc3 <- iris_data$Sepal.Length * eign_iris_data$vectors[1,3] + iris_data$Sepal.Width * eign_iris_data$vectors[2,3] +
+  iris_data$Petal.Length * eign_iris_data$vectors[3,3] + iris_data$Petal.Width * eign_iris_data$vectors[4,3]
+
+pc4 <- iris_data$Sepal.Length * eign_iris_data$vectors[1,4] + iris_data$Sepal.Width * eign_iris_data$vectors[2,4] +
+  iris_data$Petal.Length * eign_iris_data$vectors[3,4] + iris_data$Petal.Width * eign_iris_data$vectors[4,4]
+
+iris_pc <- data.frame(pc1, pc2, pc3, pc4)
+ggplo(iris_pc[, 1:2], col = iris[, 5])
+```
+
+## Analiza głównych koordynatów (PCoA) - klasyczne skalowanie wielowymiarowe (cMDS)
+
+**Analiza głównych koordynatów** (PCoA) nazywana też klasycznym skalowaniem wielowymiarowym (cMDS) jest uogólnieniem PCA. Algorytm nalizy jest praktycznie identyczny, jednakze zamiast uzywac macierzy korelacji/kowariacnji używamy dowolnej **macierzy odległości** (zauważ, że użycie odległości euklidesowej jest równowazne z uzyciem macierzy korelacji co daje PCA).
+
+Sprawdźmy różnicę między PCA i PCoA dla pewnych danych genetycznych:
+
+```{r}
+gene_data <- read_csv("gene_data.csv")
+rownames(gene_data) <- c("wt1", "wt2", "wt3", "wt4", "wt5", "ko1", "ko2", "ko3", "ko4", 
+"ko5")
+
+# PCA
+pca <- prcomp(gene_data, scale = TRUE, center = TRUE)
+pca.var <- pca$sdev^2
+pca.var.per <- round(pca.var/sum(pca.var)*100, 1)
+pca.var.per
+
+pca.data <- data.frame(
+  Sample = rownames(pca$x),
+  PC1 = pca$x[,1],
+  PC2 = pca$x[,2])
+ 
+ggplot(data=pca.data, aes(x=PC1, y=PC2, label=Sample)) +
+  geom_text() +
+  xlab(paste("PC1 - ", pca.var.per[1], "%", sep="")) +
+  ylab(paste("PC2 - ", pca.var.per[2], "%", sep="")) +
+  theme_bw() +
+  ggtitle("PCA Graph")
+
+# PCoA - dystans euklidesowy
+distance.matrix <- dist(scale(gene_data, center = TRUE, scale = TRUE), method = "euclidean")
+mds <- cmdscale(distance.matrix, eig = TRUE, x.ret = TRUE)
+
+mds.var.per <- round(mds$eig/sum(mds$eig)*100, 1)
+mds.var.per
+ 
+mds.values <- mds$points
+mds.data <- data.frame(
+  Sample = rownames(mds.values),
+  PCo1 = mds.values[, 1],
+  PCo2 = mds.values[, 2])
+ 
+ggplot(data = mds.data, aes(x = PCo1, y = PCo2, label = Sample)) +
+  geom_text() +
+  theme_bw() +
+  xlab(paste("MDS1 - ", mds.var.per[1], "%", sep="")) +
+  ylab(paste("MDS2 - ", mds.var.per[2], "%", sep="")) +
+  ggtitle("MDS plot using Euclidean distance")
+```
+
+Jak widać oba wykresy dają tę samą odpowiedź. sprawdźmy teraz co stanie się gdy użyjemy innej odległości. W genetyce czesto stosowana jest **Log Fold Change**:
+
+$$
+log_2FC(sample_1, sample_2) = log_2(sample_1) - log_2(sample_2)
+$$
+```{r}
+log2.data.matrix <- log2(data.matrix)
+
+log2.distance.matrix <- matrix(0,
+  nrow=ncol(log2.data.matrix),
+  ncol=ncol(log2.data.matrix),
+  dimnames=list(colnames(log2.data.matrix),
+    colnames(log2.data.matrix)))
+ 
+log2.distance.matrix
+ 
+for(i in 1:ncol(log2.distance.matrix)) {
+  for(j in 1:i) {
+    log2.distance.matrix[i, j] <-
+      mean(abs(log2.data.matrix[,i] - log2.data.matrix[,j]))
+  }
+}
+log2.distance.matrix
+
+mds2 <- cmdscale(as.dist(log2.distance.matrix), eig = TRUE, x.ret = TRUE)
+ 
+mds.var.per <- round(mds2$eig/sum(mds2$eig)*100, 1)
+mds.var.per
+ 
+mds.values <- mds2$points
+mds.data <- data.frame(
+  Sample = rownames(mds.values),
+  PCo1 = mds.values[,1],
+  PCo2 = mds.values[,2])
+ 
+ggplot(data=mds.data, aes(x = PCo1, y = PCo2, label=Sample)) +
+  geom_text() +
+  theme_bw() +
+  xlab(paste("MDS1 - ", mds.var.per[1], "%", sep="")) +
+  ylab(paste("MDS2 - ", mds.var.per[2], "%", sep="")) +
+  ggtitle("MDS plot using avg(logFC) as the distance")
+```
+
+## t-SNE
+
+Metody takie jak PCA czy MDS działają dla nieskomplikowanych danych tabularycznych, lecz co jeśli chcielibyśmy redukcję wymiarów przeprowadzić dla tekstów, zdjęc lub innych złozonych danych? Na szczeście istnieje wiele nieliniowych metod, które mogą okazać się pomocne w takim przypadku.
+
+**t-distributed stochastic neighbor embedding (t-SNE)** jest jedną z popularniejszych metod tego typu. Załóżmy, że mamy mamy $N$ obserwacji w przestrzeni p-wymiarowej. t-SNE stara się nauczyc niskowymiarowej reprezentacji (mapy) poprzez minimalizację **dywergencji Kullbacka–Leiblera**, będącej pseudo-odległością między rozkładami.
+
+W kroku pierwszym liczone sa prawdopodobieństwa $p_{ij}$ proporcjonalne do podobieństwa między obserwacjami $x_i$ i $x_j$:
+
+$$
+p_{j \mid i}=\frac{\exp \left(-\left\|\mathbf{x}_{i}-\mathbf{x}_{j}\right\|^{2} / 2 \sigma_{i}^{2}\right)}{\sum_{k \neq i} \exp \left(-\left\|\mathbf{x}_{i}-\mathbf{x}_{k}\right\|^{2} / 2 \sigma_{i}^{2}\right)}\\
+p_{i \mid i} = 0
+$$
+a ostatecznie:
+
+$$
+p_{ij} = \frac{p_{j \mid i} + p_{i \mid j}}{2n}
+$$
+
+Powyższe wzory można roumiec w następujący sposób: podobienstwo punktu $x_j$ do $x_i$ jest wyrażone poprzez prawdopodobieństwo warunkowe $p_{j \mid i}$ tego, ze $x_i$ wybrał by $x_j$ jako swojego sąsiada, jesli sąsiedzi wybierani byliby proporcjonalnie względem rozkładu gausssowskiego z centrum w $x_i$.
+
+Nastepnie t-SNE stara się odwzorować powyższe podobieństwa w przestrzenie niskowymiarowej. Podobienstwa w tej przestrzeni liczone są za pomocą wzoru:
+
+$$
+q_{i j}=\frac{\left(1+\left\|\mathbf{y}_{i}-\mathbf{y}_{j}\right\|^{2}\right)^{-1}}{\sum_{k} \sum_{l \neq k}\left(1+\left\|\mathbf{y}_{k}-\mathbf{y}_{l}\right\|^{2}\right)^{-1}}\\
+q_{ii}=0
+$$
+Odwzorowanie podobieństwa przebiega poprzez cykliczne aktualizacje punktów $y_j$ w przestrzeni niskowymiarowej poprzez minimalizację dywergencji KL:
+
+$$
+\mathrm{KL}(P \| Q)=\sum_{i \neq j} p_{i j} \log \frac{p_{i j}}{q_{i j}}
+$$
+```{r}
+mnist <- read_csv("mnist.csv")
+# Wizualizacja przykładowych zdjęć
+xy_axis <- data.frame(x = expand.grid(1:28,28:1)[,1],
+                      y = expand.grid(1:28,28:1)[,2])
+plot_theme <- list(
+  raster = geom_raster(hjust = 0, vjust = 0),
+  gradient_fill = scale_fill_gradient(low = "white", high = "black", guide = FALSE),
+  theme = theme(axis.line = element_blank(),
+                axis.text = element_blank(),
+                axis.ticks = element_blank(),
+                axis.title = element_blank(),
+                panel.background = element_blank(),
+                panel.border = element_blank(),
+                panel.grid.major = element_blank(),
+                panel.grid.minor = element_blank(),
+                plot.background = element_blank())
+)
+
+sample_plots <- sample(1:nrow(mnist), 100) %>% map(~ {
+  plot_data <- cbind(xy_axis, fill = t(mnist[.x, -1]))
+  ggplot(plot_data, aes(x, y, fill = fill)) + plot_theme
+})
+
+do.call("grid.arrange", c(sample_plots, ncol = 10, nrow = 10))
+
+# PCA
+pca <- prcomp(mnist[ , -1])
+pca_mnist <- pca$x[ , 1:2] %>% as.data.frame() %>%
+  bind_cols(., label = factor(mnist$label))
+ggplot(pca_mnist, aes(PC1, PC2, color = label)) + theme_bw() + geom_point()
+
+# t-SNE
+tsne <- Rtsne(mnist[ , -1],
+              dims = 2, # Na ile wymiarów chcemy rzutować nasze dane
+              perplexity = 30,
+              verbose = TRUE,
+              pca = TRUE, # Czy wykonać PCA na początku ?
+              max_iter = 500) # Liczba iteracji algorytmu
+tsne_mnist <- tsne$Y %>% as.data.frame() %>%
+  dplyr::rename(x = V1, y = V2) %>% bind_cols(., label = factor(mnist$label))
+ggplot(tsne_mnist, aes(x, y, color = label)) + theme_bw() + geom_point()
+```
+
+Zalety t-SNE:
+ - działa dla mocno nieliniowych, nieustrukturyzowanych danych
+ - zachowuje lokalne i globalne struktury
+
+Wady t-SNE
+ - jako, że bazuje na odległościach pomiędzy punktami (wszystkimi) nie dostejemy możliwości przeliczenia dla nowej obserwacji (brak wzoru)
+ - konieczność sprawdzenia wielu wartości `perplexity` i `max_iter`
+ 
