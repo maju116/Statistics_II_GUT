@@ -1,0 +1,225 @@
+---
+title: "8. PCA, PCoA, t-SNE"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(plotly)
+library(ggbiplot)
+```
+
+# Redukcja wymiarów
+
+## Wstęp
+
+Zwizualizujmy sobie nastepujacy zestaw danych:
+
+```{r, message=FALSE, warning=FALSE}
+test_data <- tibble(
+  x1 = sample(seq(0, 10, by = 0.1), 50),
+  x2 = sample(seq(0, 30, by = 0.1), 50),
+  col = "Real"
+) %>%
+  mutate(x3 = 2 * x1 + 6 * x2 - 3 + rnorm(50, 2, 16))
+
+plot_ly(data = test_data, x = ~x1, y = ~x2, z = ~x3,
+        size = I(4), color = ~col, colors = c("red"))
+
+test_data_manifold <- expand.grid(seq(0, 10, by = 0.1), seq(0, 30, by = 0.1)) %>%
+  dplyr::rename(x1 = Var1, x2 = Var2) %>%
+  mutate(x3 = 2 * x1 + 6 * x2 - 3) %>%
+  mutate(col = "Manifold") %>%
+  bind_rows(., test_data)
+
+plot_ly(data = test_data_manifold, x = ~x1, y = ~x2, z = ~x3,
+        size = I(4), color = ~col, colors = c("green", "red"))
+```
+
+oraz:
+
+```{r, message=FALSE, warning=FALSE}
+test_data2 <- tibble(
+  x1 = sample(seq(0, 10, by = 0.1), 50),
+  x2 = sample(seq(0, 30, by = 0.1), 50),
+  col = "Real"
+) %>%
+  mutate(x3 = 100*sin(x1)*cos(x2) + rnorm(50, 2, 8))
+
+plot_ly(data = test_data2, x = ~x1, y = ~x2, z = ~x3,
+        size = I(4), color = ~col, colors = c("red"))
+
+test_data_manifold2 <- expand.grid(seq(0, 10, by = 0.1), seq(0, 30, by = 0.1)) %>%
+  dplyr::rename(x1 = Var1, x2 = Var2) %>%
+  mutate(x3 = 100*sin(x1)*cos(x2)) %>%
+  mutate(col = "Manifold") %>%
+  bind_rows(., test_data2)
+
+plot_ly(data = test_data_manifold2, x = ~x1, y = ~x2, z = ~x3,
+        size = I(4), color = ~col, colors = c("green", "red"))
+```
+
+W obu przypadkach dane, które posiadamy są trójwymiarone, jednakże łatwo pokazać, że istnieje pewien dwuwymiarowy **manifold**, który przybliża nam prawdziwy rozkład danych - po zrzutowaniu na manifold nie tracimy zbyt wiele informacji (wariancji) oryginalnych danych.
+
+W przypadku 3 wymiarów ta informacja nie jest zbytnio interesująca, jednakże gdy mamy do czynienia z dużą liczbą zmiennych (predyktorów) zrzutowanie ich do nisko-wymiarowej podprzestrzeni może być bardzo korzystne. Jest to tak zwana **redukcja wymiarów**.
+
+Z reguły metody redukcji wymiarów dzielą się na **liniowe** jak na przykład **analiza głównych składowych (PCA)**, **analiza składowych niezależnych (ICA)**, **liniowe skalowanie wielowymiarowe** oraz **nieliniowe** jak na przykład **nie liniowe skalowanie wielowymiarowe**, **UMAP**, **t-SNE**.
+
+Redukcja wymiarów przydaje się do:
+
+- wizualizacji danych
+- redukcji overfittingu (pozbycie sie klątwy wymiarór)
+- selekcji/tworzenia zmiennych
+- zakodowania zbioru danych
+
+## Analiza głównych składowych (PCA)
+
+Przyjmijmy, że mamy $p$ zmiennych, $X_j, \ (j = 1, ..., p)$, a obserwacje przeprowadzone na $n$ jednorodnych obiektach $(i = 1, ..., n)$ zebrane są w formie macierzy danych $X$, o której zakładamy, że jest pełnego rzędu (aby nie zmieniać struktury zmiennych jakąkolwiek liniową ich kombinacją). Zdefiniujmy dla tych zmiennych macierze zależności: macierz korelacji $R$ i macierz kowariancji $S$. Zakłada się przy tym, że macierze korelacji i kowariancji mają pewną liczbę różnych największych **wartości własnych**.
+
+Idea **analizy głównych składowych** (PCA) polega na ortogonalnej transformacji układu badanych zmiennych $X_j$ w zbiór nowych nieobserwowanych zmiennych $Y_l$ które są liniowymi kombinacjami tych obserwowanych zmiennych, co możemy zapisać w postaci układu równań:
+
+$$
+\begin{array}{c}
+Y_{1}=w_{11} X_{1}+w_{21} X_{2}+\ldots+w_{p 1} X_{p} \\
+Y_{2}=w_{12} X_{1}+w_{22} X_{2}+\ldots+w_{p 2} X_{p} \\
+\cdots \\
+Y_{m}=w_{1 m} X_{1}+w_{2 m} X_{2}+\ldots+w_{p m} X_{p}\\
+Y_{k} \perp Y_{l}, \ k\neq l
+\end{array}
+$$
+
+W postaci uogólnionej układ ten zapiszemy:
+
+$$
+Y_{l}=w_{1}, X_{1l}+w_{2} X_{2l}+\cdots+w_{p l} X_{p}=\sum_{j=1}^{p} w_{j l} X_{j}
+$$
+
+Nowe, przetworzone zmienne $Y_l$ noszą nazwę **głównych składowych** (ang. principal components) zmiennych $X_j$ lub też zmiennych składowych, zaś współczynniki $w_{jl}$ nazywają się **ładunkami składowymi** (ang. component loadings). Są one **nieskorelowane między sobą** (ortogonalne) i unormowane (suma kwadratów współczynników danej kombinacji $w_{jl}$ jest równa jeden), a suma wariancji składowych $Y_l$ jest równa ogólnej wariancji zmiennych $X_j$.
+
+Podstawowy cel analizy głównych składowych, polega na identyfikacji struktury zależności, poprzez utworzenie zupłnie nowego zbioru istotnych zmiennych, który częściowo bądź całkowicie mógłby zastąpic pierwotny zbiór zmiennych. Cel ten określa sie jako redukcję wymiarowości (ang. reduction of dimensionality lub reduction of the basic dimensions) złozonego zjawiska. Dobrze jest bowiem, gdy złozoną strukture zaleznosci uda sie opisac niewielką liczbą głównych składowych, z możliwością ich
+dalszego wykorzystania w innych technikach analizy wielowymiarowej.
+
+Istnieje kilka różnych procedur uzyskiwania głównych składowych. Najpowszechniej stosowana jest **metoda Hotellinga** (1933), wykorzystująca **metodę mnożników Lagrange'a** maksymalizacji funkcji wielu zmiennych. Prześledzimy ją, przyjmując najpierw, że punktem wyjścia analizy jest macierz kowariancji $S$.
+
+Rozważmy pierwszą główną składow¡ modelu:
+
+$$
+Y_{1}=w_{11} X_{1}+w_{21} X_{2}+\ldots+w_{p 1} X_{p} = \mathbf{w}_{1}^{\prime}x
+$$
+gdzie $\mathbf{w}_{1}^{\prime} = [w_{11}, ..., w_{p1}]$  której wariancja wynosi:
+
+$$
+S^{2}\left(Y_{1}\right)=\sum_{k=1}^{p} \sum_{j=1}^{p} w_{j 1} w_{k 1} s_{j k}=\mathbf{w}_{1}^{\prime} \mathbf{S} \mathbf{w}_{1}
+$$
+
+Jest to więc funkcja $p$ wspólczynników $w_{11}, ..., w_{p1}$, które musza być wybrane tak aby maksymalizować wariancję przy warunku $\mathbf{w}_{1}^{\prime}\mathbf{w}_{1}=1$. Warunek ten wprowadza ograniczenie na wartości $w_{j1}$ tak aby długość wektora $\mathbf{w}$ była równa $1$. Jest to tak zwany warunek normalizujący.
+
+Do znalezienia wartości współczynników $\mathbf{w}_{1}^{\prime}$ stosuje się metodę Lagrange'a (metoda optmalizacyjna do znajdowania ekstremów funkcji różniczkowalnej). Oznaczmy przez $\lambda_1$ mnoznik oraz zdefiniujmy funkcje pomocniczą uwzględniającą ograniczenie normalizacyjne:
+
+$$
+\varphi=1-\mathbf{w}_{1}^{\prime} \mathbf{w}_{1} \equiv 0
+$$
+
+Utwórzmy funkcję Lagrange'a:
+
+$$
+L\left(\mathbf{w}_{1}\right)=S^{2}\left(Y_{1}\right)+\lambda_{1}\left(1-\mathbf{w}_{1}^{\prime} \mathbf{w}_{1}\right)=\mathbf{w}_{1}^{\prime} \mathbf{S} \mathbf{w}_{1}+\lambda_{1}\left(1-\mathbf{w}_{1}^{\prime} \mathbf{w}_{1}\right)
+$$
+
+a obliczoną pochodną względem wektora $w_1$, porównajmy do zera:
+
+$$
+\frac{\partial L}{\partial \mathbf{w}_{1}}=2 \mathbf{S} \mathbf{w}_{1}-2 \lambda_{1} \mathbf{w}_{1}=2\left(S-\lambda_{1} \mathrm{I}\right) \mathbf{w}_{1}=0
+$$
+
+A zatem poszukiwane współczynniki $w_1$, muszą spełniac $p$ jednorodnych równań liniowych:
+
+$$
+(S-\lambda_{1} \mathrm{I})\mathbf{w}_{1}=0
+$$
+Ponieważ rozwiązaniem nie może być wektor zerowy to $\lambda_1$ musi być liczbą spełniającą równanie wyznacznikowe:
+
+$$
+|S-\lambda_{1} \mathrm{I}|\mathbf{w}_{1}=0
+$$
+Z powyższego widać, że $\lambda_1$ musi być **wartością własną** macierzy $S$, zaś wektor $w_1$ jest zwiazanym z nią $wektorem własnym$:
+
+$$
+S\mathbf{w}_{1}=\lambda_{1}\mathbf{w}_{1}
+$$
+Mnożąc powyższe równanie lewostronnie przez $\mathbf{w}_{1}^{\prime}$ i wykorzystując ograniczenie normalizujące dostajemy:
+
+$$
+\mathbf{w}_{1}^{\prime} \mathbf{S} \mathbf{w}_{1}=\lambda_{1} \mathbf{w}_{1}^{\prime} \mathbf{w}_{1}=\lambda_{1}=S^{2}\left(Y_{1}\right)
+$$
+
+Ponieważ wektor współczynników ma być wybrany tak aby maksymalizować wariancje to $\lambda_1$ musi być **największa wartością własną** macierzy $S$. Pierwsza główna składowa jest zatem wyznaczona przez parę: wartość włansa - wektor własny $(\lambda_1, \mathbf{w}_{1})$
+
+Współczynniki drugiej głównej składowej wyznaczamy jak poprzednio, metodą Lagrange'a, przy czym funkcja Lagrange'a jest tym razem dana wzorem uwzględniającym dwa ograniczenia:
+
+$$
+\begin{aligned}
+L\left(\mathbf{w}_{2}\right) &=S^{2}\left(Y_{2}\right)+\lambda_{2}\left(1-\mathbf{w}_{2}^{\prime} \mathbf{w}_{2}\right)+\pi \mathbf{w}_{1}^{\prime} \mathbf{w}_{2}=\\
+&=\mathbf{w}_{2}^{\prime} \mathbf{S} \mathbf{w}_{2}+\lambda_{2}\left(1-\mathbf{w}_{2}^{\prime} \mathbf{w}_{2}\right)+\pi \mathbf{w}_{1}^{\prime} \mathbf{w}_{2}
+\end{aligned}
+$$
+gdzie $\pi$ jest drugim mnoznikiem, a $\mathbf{w}_{1}^{\prime} \mathbf{w}_{2} \equiv 0$ jest drugą funkcją pomocniczą (warunek ortogonalności). Rozwiązując równanie w analogiczny sposób dojdziemy do rozwiązaniem będącego **drugą co do wielkości wartością własną**. Analogicznie kolejnymi rozwiązaniami byłyby kolejne wartości własne, rozwiązanie wiec sprowadza się do znalezienia wartości własnych macierzy $S$, bedącymi pierwiastkami równaia:
+
+$$
+|S-\lambda \mathrm{I}|=0
+$$
+i uporządkowanie ich malejąco (zazwyczaj potrzebna jest także normalizacja).
+
+Wagę l−tej głównej składowej mierzymy ilorazem:
+
+$$
+\mathrm{I}\left(Y_{l}\right)=\frac{\lambda_{l}}{\operatorname{tr} \mathrm{S}}(100 \%)
+$$
+
+który informuje nas jaki odsetek wariancji tłumaczony jest przez l-tą składową.
+
+Wspóªczynniki głównych składowych $w_{jl}$ zasługują na uważną analizę. Ponieważ po normalizacji suma ich kwadratów jest równa jeden
+
+$$
+\sum_{j=1}^{p} w_{j l}^{2}=1, \quad l=1, \ldots, p
+$$
+
+są one wagami, z jakimi poszczególne zmienne $X_j$ komponują się wskładowe i mierzą tym samym znaczenie zmiennych w składowych. Znak współczynnika informuje o sposobie, zas moduł o wielko±ci wpływu j−tej zmiennej na l−tą gªówn¡ składową.
+
+Z geometrycznego punktu widzenia ideą analizy głównych składowych jest opisanie zmienności układu n punktów w p−wymiarowej przestrzeni cech poprzez wprowadzenie nowego układu liniowych, ortogonalnych współrzędnych. Wariancje danych punktów względem wprowadzonych współrzędnych są uporządkowane malejąco. Rzuty punktów na pierwszą składową mają największą wariancję ze wszystkich możliwych liniowych współrzędnych.
+
+Sprawdźmy jak PCA zadziała dla przykładowych danych motoryzacyjnych:
+
+```{r}
+mtcars.pca <- prcomp(mtcars[,c(1:7, 10, 11)], center = TRUE, scale. = TRUE)
+```
+
+Zacznijmy od zwizualizowania dwóch pierwszych składowych oraz tłumaczonej wariancji:
+
+```{r}
+summary(mtcars.pca)
+mtcars.country <- c(rep("Japan", 3), rep("US",4), rep("Europe", 7),rep("US",3), "Europe", rep("Japan", 3), rep("US",4), rep("Europe", 3), "US", rep("Europe", 3))
+ggbiplot(mtcars.pca, ellipse = TRUE,  labels = rownames(mtcars), groups = mtcars.country)
+```
+
+Zalety PCA:
+ - zachowanie globalnej struktury danych
+ - możliwość policzenia wartości składowych dla nowej obserwacji
+ - łatwość interpretacji składowych (funckja liniowa orginałów)
+
+Wady PCA:
+ - nie zachowuje lokalnej struktury danych (clustry)
+ - działa tylko dla liniowych danych
+ - trudność w interpretacji (każda składowa zalezna od każdej orginalnej zmiennej - alternatywą jest **regularized PCA**)
+ 
+ Główne składowe mogą zostać uzyte jako nowe zmienne w dalszej analizie, np. w regresji lub klasyfikacji. jest to tak zwana **principal components regression/classification**
