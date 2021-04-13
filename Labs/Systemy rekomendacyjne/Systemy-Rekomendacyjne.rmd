@@ -257,9 +257,89 @@ $$
 \min_{p, q}\sum_{u,i}(r_{ui} - q_i^Tp_u)^2
 $$
 
-Powyższe wyrażenie minimalizowane jest tylko dla istniejących ocen użytkowników (jeśli ocena nie istnieje nie wstawiamy za nią np. 0). Istnieje wiele różnych algorytmów faktoryzacji macierzy, poza klasycznym SVD częstym wyborem jest **Non-negative matrix factorization(NNMF)**.
+Powyższe wyrażenie minimalizowane jest tylko dla istniejących ocen użytkowników (jeśli ocena nie istnieje nie wstawiamy za nią np. 0). Istnieje wiele różnych algorytmów faktoryzacji macierzy, poza klasycznym SVD częstym wyborem jest **Non-negative matrix factorization(NNMF)**. Warto także dodać, że do rozwiązania problemu overfittingu można użyć klasycznej regularyzacji np. LASSO/Ridge:
+
+$$
+\min_{p, q}\sum_{u,i}(r_{ui} - q_i^Tp_u)^2 + \lambda(||q_i||^2+||p_u||^2)
+$$
 
 ![](imgs/mf.png)
 
+## Hybrid Recommendation System
+
+W większości zastosowań stosuje się **sytemy hybrydowe** łaczące predykcje z wyżej wymienionych rozwiązań.
+
 ## Ewaluacja systemów rekomendacyjnych
+
+W `R` możemy tworzyc i walidować systemy rekomendacyjne w pakiecie `recommenderlab`. Zacznijmy od załadowania zbioru `MovieLense`
+
+```{r}
+data("MovieLense")
+# Dla ułatwienia bierzemy tylko tych uzytkowników, którzy ocenili conajmniej 100 filmów
+ratings_movies <- MovieLense[rowCounts(MovieLense) > 50, colCounts(MovieLense) > 100]
+```
+
+Nastepnie dzielimy nasz zbiór na treningowy i testowy:
+
+```{r}
+set.seed(1234)
+percentage_training <- 0.8
+items_to_keep <- 15
+rating_threshold <- 3
+folds <- 10
+
+eval_sets <- evaluationScheme(data = ratings_movies,
+                              method = "cross-validation",
+                              train = percentage_training,
+                              given = items_to_keep,
+                              goodRating = rating_threshold,
+                              k = folds)
+```
+
+Sprawdźmy teraz jakie metody możemy zastosować do naszych danych
+
+```{r}
+recommender_models <- recommenderRegistry$get_entries(dataType = "realRatingMatrix") %>% map_df(~ {
+  tibble(name = .x$method, description = .x$description)
+})
+recommender_models
+```
+
+Zacznijmy od modelu IBCF:
+
+```{r}
+model_to_evaluate <- "IBCF"
+model_parameters <- list(method = "cosine")
+eval_recommender <- Recommender(data = getData(eval_sets, "train"),
+                                method = model_to_evaluate, parameter = model_parameters)
+items_to_recommend <- 10
+eval_prediction <- predict(object = eval_recommender, newdata =
+                             getData(eval_sets, "known"), n = items_to_recommend, type = "ratings")
+eval_accuracy <- calcPredictionAccuracy(
+  x = eval_prediction, data = getData(eval_sets, "unknown"))
+head(eval_accuracy)
+
+eval_accuracy_per_user <- calcPredictionAccuracy(
+  x = eval_prediction, data = getData(eval_sets, "unknown"), byUser = TRUE)
+qplot(eval_accuracy_per_user[, "RMSE"]) + geom_histogram(bins = 50) +
+  ggtitle("Distribution of the RMSE by user")
+```
+
+Sprawdźmy teraz kilka dostępnych metod:
+
+```{r}
+models_to_evaluate <- list(
+  IBCF_cos = list(name = "IBCF", param = list(method = "cosine")),
+  UBCF_cos = list(name = "UBCF", param = list(method = "cosine")),
+  random = list(name = "RANDOM", param = NULL),
+  Funk_SVD = list(name = "SVDF", param = NULL)
+)
+
+n_recommendations <- c(1, 5, seq(10, 100, 10))
+
+list_results <- evaluate(x = eval_sets, method = models_to_evaluate, n = n_recommendations)
+list_results$Funk_SVD@results
+plot(list_results, annotate = 1, legend = "topleft")
+title("ROC curve")
+```
 
