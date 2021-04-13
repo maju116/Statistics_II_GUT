@@ -202,8 +202,8 @@ cos_sim2 %>%
 
 System oparty na kolaboracji (Collaborative Filtering) - Systemy te również bazują na podobieństwie, jednakże w przeciwieństwie do systemów opartych na treści, w systemach CF sprawdzane są podobienstwa miedzy użytkownikami (nie tylko własna historia) oraz produktami (które są do siebie podobne). W zależności od tego jak mierzymy prodobieństwa możemy mieć do czynienia z sytemem:
 
- - User-based CF - szukamy podobnych użytkowników
- - Item-based CF - szukamy podobnych przedmiotów
+- User-based CF - szukamy podobnych użytkowników
+- Item-based CF - szukamy podobnych przedmiotów
 
 ![](imgs/cf.jpg)
 
@@ -277,6 +277,10 @@ W `R` możemy tworzyc i walidować systemy rekomendacyjne w pakiecie `recommende
 data("MovieLense")
 # Dla ułatwienia bierzemy tylko tych uzytkowników, którzy ocenili conajmniej 100 filmów
 ratings_movies <- MovieLense[rowCounts(MovieLense) > 50, colCounts(MovieLense) > 100]
+
+data.frame(ratings = getRatings(ratings_movies)) %>%
+  ggplot(aes(ratings)) + geom_bar(width = 0.75) +
+  labs(title = 'Movielense Ratings Distribution')
 ```
 
 Nastepnie dzielimy nasz zbiór na treningowy i testowy:
@@ -284,16 +288,15 @@ Nastepnie dzielimy nasz zbiór na treningowy i testowy:
 ```{r}
 set.seed(1234)
 percentage_training <- 0.8
-items_to_keep <- 15
-rating_threshold <- 3
-folds <- 10
+items_to_keep <- 10
+rating_threshold <- 4
 
 eval_sets <- evaluationScheme(data = ratings_movies,
-                              method = "cross-validation",
-                              train = percentage_training,
+                              method = 'split',
+                              train = percentage_training, 
                               given = items_to_keep,
                               goodRating = rating_threshold,
-                              k = folds)
+                              k = 1)
 ```
 
 Sprawdźmy teraz jakie metody możemy zastosować do naszych danych
@@ -305,16 +308,20 @@ recommender_models <- recommenderRegistry$get_entries(dataType = "realRatingMatr
 recommender_models
 ```
 
-Zacznijmy od modelu IBCF:
+Zacznijmy od modelu UBCF:
 
 ```{r}
-model_to_evaluate <- "IBCF"
-model_parameters <- list(method = "cosine")
+model_to_evaluate <- "UBCF"
+model_parameters <- list(method = "cosine",
+                         nn = 10,
+                         sample = FALSE,
+                         normalize = "center")
 eval_recommender <- Recommender(data = getData(eval_sets, "train"),
                                 method = model_to_evaluate, parameter = model_parameters)
 items_to_recommend <- 10
 eval_prediction <- predict(object = eval_recommender, newdata =
                              getData(eval_sets, "known"), n = items_to_recommend, type = "ratings")
+
 eval_accuracy <- calcPredictionAccuracy(
   x = eval_prediction, data = getData(eval_sets, "unknown"))
 head(eval_accuracy)
@@ -329,10 +336,18 @@ Sprawdźmy teraz kilka dostępnych metod:
 
 ```{r}
 models_to_evaluate <- list(
-  IBCF_cos = list(name = "IBCF", param = list(method = "cosine")),
-  UBCF_cos = list(name = "UBCF", param = list(method = "cosine")),
+  IBCF_cos = list(name = "IBCF", param = list(method = "Cosine",
+                                              k = 30,
+                                              normalize = "center")),
+  UBCF_cos = list(name = "UBCF", param = list(method = "cosine",
+                                              nn = 10,
+                                              sample = FALSE,
+                                              normalize = "center")),
   random = list(name = "RANDOM", param = NULL),
-  Funk_SVD = list(name = "SVDF", param = NULL)
+  Funk_SVD = list(name = "SVDF", param = list(normalize = "center",
+                                              k = 10,
+                                              gamma = 0.015,
+                                              lambda = 0.001))
 )
 
 n_recommendations <- c(1, 5, seq(10, 100, 10))
