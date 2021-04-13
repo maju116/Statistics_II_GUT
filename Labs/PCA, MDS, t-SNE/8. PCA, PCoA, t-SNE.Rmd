@@ -249,7 +249,7 @@ pc4 <- iris_data$Sepal.Length * eign_iris_data$vectors[1,4] + iris_data$Sepal.Wi
   iris_data$Petal.Length * eign_iris_data$vectors[3,4] + iris_data$Petal.Width * eign_iris_data$vectors[4,4]
 
 iris_pc <- data.frame(pc1, pc2, pc3, pc4)
-ggplo(iris_pc[, 1:2], col = iris[, 5])
+plot(iris_pc[, 1:2], col = iris[, 5])
 ```
 
 ## Analiza głównych koordynatów (PCoA) - klasyczne skalowanie wielowymiarowe (cMDS)
@@ -305,10 +305,10 @@ ggplot(data = mds.data, aes(x = PCo1, y = PCo2, label = Sample)) +
 Jak widać oba wykresy dają tę samą odpowiedź. sprawdźmy teraz co stanie się gdy użyjemy innej odległości. W genetyce czesto stosowana jest **Log Fold Change**:
 
 $$
-log_2FC(sample_1, sample_2) = log_2(sample_1) - log_2(sample_2)
+log_2FC(sample_1, sample_2) = |log_2(sample_1) - log_2(sample_2)|
 $$
 ```{r}
-log2.data.matrix <- log2(data.matrix)
+log2.data.matrix <- log2(gene_data)
 
 log2.distance.matrix <- matrix(0,
   nrow=ncol(log2.data.matrix),
