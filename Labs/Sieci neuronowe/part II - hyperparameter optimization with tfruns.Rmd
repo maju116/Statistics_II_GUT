@@ -1,0 +1,66 @@
+---
+title: "part II - hyperparameter optimization with tfruns"
+author: "Michał Maj"
+output: html_notebook
+---
+
+Wiesz już, jak używać podstawowych funkcji Keras do tworzenia modelu sekwencyjnego. Następnym krokiem jest nauczenie się dostrajania hiperparametrów. Jak zapewne pamiętasz, możemy użyć metody wyszukiwania w siatce (grid search), aby dostroić hiperparametry dowolnego modelu uczenia maszynowego. W przypadku modeli Keras możemy skorzystać z pakietu `tfruns`.
+
+W pierwszym kroku musimy zdefiniować skrypt odpowiedzialny za dopasowanie modelu oraz listę "flag" (hiperparametrów do sprawdzenia):
+
+```{r tfruns_define}
+library(keras)
+library(tfruns)
+library(tidyverse)
+
+load("data/bin_class.RData")
+ind <- sample(1:nrow(bin_class_data), 0.8*nrow(bin_class_data))
+bin_class_train_X <- bin_class_data[ind, c("x", "y")] %>% as.matrix()
+bin_class_train_Y <- bin_class_data[ind, "class", drop = TRUE]
+bin_class_test_X <- bin_class_data[-ind, c("x", "y")] %>% as.matrix()
+bin_class_test_Y <- bin_class_data[-ind, "class", drop = TRUE]
+
+file.edit("part II - tfruns example.R")
+```
+
+Teraz możemy uruchomić skrypty dla różnych wartości hiperparametrów:
+
+```{r tfruns_run}
+runs <- tuning_run(
+  file = "part II - tfruns example.R", # Script with defined flags
+  flags = list( # Flags values
+    units = c(2, 8),
+    activation = c("tanh", "relu"),
+    dropout = c(0.2, 0.4),
+    batch_size = c(50, 100)
+  ),
+  runs_dir = "runs", # Where to save training runs ?
+  confirm = FALSE) # Confirm running ?
+
+runs
+```
+
+```{r best_runs}
+runs %>% arrange(desc(metric_val_accuracy)) %>%
+  select(run_dir, metric_accuracy, metric_val_accuracy, flag_dropout, flag_batch_size, flag_units, flag_activation) -> runs_order
+runs_order
+```
+
+Aby wyświetlić ostatni trening, możesz użyć:
+
+```{r latest_run}
+latest_run()
+```
+
+Możesz również wyświetlić go w Tensorboard:
+
+```{r view_run}
+view_run(runs_order$run_dir[1])
+```
+
+a nawet porównać dwa różne treningi:
+
+```{r compare_runs}
+compare_runs(runs = runs_order$run_dir[1:2])
+```
+

@@ -1,0 +1,350 @@
+---
+title: "part III - Stochastic Gradient Descent and Backpropagation"
+author: "Michał Maj"
+output: html_notebook
+---
+
+```{r packages}
+library(tidyverse)
+library(gridExtra)
+```
+
+Zacznijmy od prostej funkcji `f (x) = x ^ 2 + 1` i jej pochodnej `f'(x) = 2x`. Znalezienie minimum `f(x)` jest proste w tej sytuacji: minimalna wartość jest równa `1`, gdy `x == 0`. Zauważ, że nasza pochodna `f'(x)` równa się `0` dokładnie w tym punkcie (jeśli wartość pochodnej `f'(x) `jest równa `0` w punkcie `x == x0`, funkcja `f(x)` ma lokalne / globalne minimum / maksimum / punkt zwrotny w `x0`).
+
+```{r ordinary_function}
+f <- function(x) x^2 + 1
+grad_f <- function(x) 2*x
+sample_data = tibble(
+  x = seq(-2, 2, by = 0.05),
+  y = f(x),
+  grad = grad_f(x)
+)
+base_plot <- ggplot(sample_data, aes(x, y)) + geom_line(color = "red") + geom_line(aes(y = grad), color = "blue") +
+  theme_bw()
+base_plot
+```
+
+Wniosek, jeśli nie możemy bezpośrednio znaleźć minimum funkcji `f(x)`, zawsze możemy spróbować sprawdzić, gdzie pochodna `f'(x)` jest równa `0` (a dla wielu rozwiązań sprawdź, która z nich jest minimum). To świetnie, ale co zrobić, gdy nie możemy rozwiązać równania `f'(x) == 0`? Żaden problem, zawsze możemy użyć bardzo prostego algorytmu o nazwie **Gradient Descent**:
+
+
+1. Zacznij od wartości początkowej parametrów (x, y, beta, cokolwiek, ...)
+2. Uaktualnij parametry formułą `param_new := param_old - LR * f'(param_old)` gdzie `LR` jest hiperparametrem zwanym **learning rate**. Wypróbujmy to dla naszej funkcji. Wypróbuj różne wartości learning rate, takie jak `0.1`, `0.01` i `1`
+
+```{r ordinary_function_GD}
+x0 <- 1.345 # Start point
+lr <- 0.1 # Learning rate
+epochs <- 30 # Nr of epochs (updates)
+GD_ordinary_fun <- function(f, grad_f, x0, lr, epochs) {
+  x <- x0
+  results <- tibble(
+    x = x0, y = f(x), grad = grad_f(x)
+  )
+  for (i in 1:epochs) {
+    x <- x - lr * grad_f(x) # GD
+    results[i + 1, ] <- list(x, f(x), grad_f(x))
+    print(paste("Updated x value:", round(x, 8), ". Updated f(x) value:", round(f(x), 8)))
+  }
+  plot(base_plot + geom_point(data = results, color = "black"))
+  results
+}
+task1 <- GD_ordinary_fun(f, grad_f, x0, lr, epochs)
+```
+
+Jeśli teraz możemy zaimplementować Gradient Descent dla prostej funkcji z jednym parametrem, możemy spróbować rozwiązać podstawowy problem uczenia maszynowego - regresję liniową.
+
+```{r linear_reg_plot}
+set.seed(666)
+sample_data <- tibble(x = runif(50, -3, 3), y = x + rnorm(50, 3, 1.2))
+base_plot <- ggplot(sample_data, aes(x, y)) + geom_point() + theme_bw()
+base_plot
+```
+
+Naszym zadaniem jest znalezienie parametrów `b0` i `b1` modelu liniowego `y = b0 + b1*x` takich aby błąd średniokwadratowy (mean squared error) był minimalny. Zanim zaczniemy, sprawdźmy rozwiązanie z R:
+
+```{r linear_reg_r}
+lm_model <- lm_model <- lm(y ~ x, sample_data)
+summary(lm_model)
+mean(lm_model$residuals^2) # MSE from model
+```
+
+Nasz model liniowy można zapisać w notacji macierzowej jako `y = Xb`. Zacznijmy od stworzenia macierzy predyktorów `X` i wektora przewidywanych wartości `y` z naszych oryginalnych danych:
+
+```{r linear_reg_matrix_data}
+X <- tibble(x0 = 1, x1 = sample_data$x) %>% as.matrix()
+y <- sample_data$y
+```
+
+Teraz musimy zaimplementować MSE:
+
+```{r linear_reg_mse}
+MSE <- function(beta, X, y) mean((beta%*%t(X) - y)^2)
+MSE(c(2.95039, 0.93806), X, y)
+```
+
+i jego pochodną:
+
+```{r linear_reg_mse_grad}
+MSE_grad <- function(beta, X, y) 2*((beta%*%t(X) - y)%*%X)/length(y)
+```
+
+Szczerze mówiąc, nie musimy tutaj używać Gradient Descent, równanie `MSE_grad == 0` ma rozwiązanie numeryczne:
+
+```{r linear_reg_mse_grad_numerical}
+solve(t(X)%*%X)%*%t(X)%*%y
+```
+
+Ale powiedzmy, że naprawdę chcemy:
+
+```{r linear_reg_gradient_descent}
+beta00 <- c(5, -0.2) # Start point
+lr <- 0.1 # Learning rate
+epochs <- 30 # Nr of epochs
+GD_linear_regression <- function(beta00, X, y, lr, epochs) {
+  beta <- beta00
+  results <- tibble(
+    b0 = beta00[1], b1 = beta00[2], mse = MSE(beta00, X, y), epoch = 0
+  )
+  for (i in 1:epochs) {
+    beta <- beta - lr * MSE_grad(beta, X, y) # GD
+    results[i + 1, ] <- list(beta[1], beta[2], MSE(beta, X, y), i)
+    print(paste("Updated b0 value:", round(beta[1], 8),
+                "Updated b1 value:", round(beta[2], 8),
+                "Updated MSE value:", round(MSE(beta, X, y), 8)))
+  }
+  # Diagnostic plots
+  p1 <- base_plot + geom_abline(intercept = beta00[1], slope = beta00[2], color = "blue") +
+    geom_abline(intercept = beta[1], slope = beta[2], color = "red")
+  p2 <- ggplot(results, aes(epoch, mse)) + theme_bw() + geom_line(color = "red")
+  lin_space <- expand.grid(seq(beta[1] - 2, beta[1] + 2, by = 0.1),
+                           seq(beta[2] - 2, beta[2] + 2, by = 0.1)) %>%
+    as.data.frame() %>% set_names(c("b0", "b1")) %>% rowwise() %>%
+    mutate(mse = MSE(c(b0, b1), X, y))
+  p3 <- ggplot(lin_space, aes(b0, b1)) + theme_bw() + geom_raster(aes(fill = mse)) +
+    geom_contour(colour = "white", aes(z = mse)) + scale_fill_gradient(low = "blue", high = "red") +
+    geom_line(data = results, color = "black", linetype = "dashed") +
+    geom_point(data = results, color = "black")
+  plot(grid.arrange(p1, p2, p3, layout_matrix = rbind(c(1, 2), c(3, 3))))
+  results
+}
+task2 <- GD_linear_regression(beta00, X, y, lr, epochs)
+```
+
+Wiemy teraz, czym jest Gradient Descent i jak go używać do rozwiązywania problemów ML. W rzeczywistości często będziemy używać zaawansowanej wersji gradientu o nazwie **Stochastic Gradient Descent** lub **SGD** w skrócie. Wprowadzimy jedną małą zmianę w naszym algorytmie. Jak pamiętasz, nasz gradient MSE `MSE_grad` bierze pod uwagę macierz obliczeń `X` i vecotr `y` i mnoży je na różne sposoby. Załóżmy na chwilę, że mamy miliony obserwacji, te mnożenia mogą zająć dużo czasu i pamięci, może być nawet niemożliwe. Istnieje proste rozwiązanie tego problemu. Nasze dane możemy podzielić na tzw. **batche**. Jeśli mamy np. 50 obserwacji, możemy je podzielić na 5 batchy - po 10 obserwacji każda. Po tych 5 batchach SGD zobaczy wszystkie obserwacje, które mieliśmy - minie pierwsza **epoka** i proces rozpocznie się od początku. Można o tym myśleć jako o dodatkowej pętli nad partiami wewnątrz pętli epok z implementacji GD.
+
+```{r linear_reg_stochastic_gradient_descent}
+beta00 <- c(5, -0.2) # Start point
+lr <- 0.1 # Learning rate
+epochs <- 50 # Nr of epochs
+batch_size <- 3 # Batch size
+SGD_linear_regression <- function(beta00, X, y, lr, epochs, batch_size) {
+  beta <- beta00
+  results <- tibble(
+    b0 = beta00[1], b1 = beta00[2], mse = MSE(beta00, X, y), epoch = 0
+  )
+  batches_per_epoch <- ceiling(length(y) / batch_size)
+  for (i in 1:epochs) {
+    for (b in 1:batches_per_epoch) {
+      indexes <- ((b - 1) * batch_size + 1):min((b * batch_size), length(y))
+      X_b <- X[indexes, , drop = FALSE]
+      y_b <- y[indexes]
+      beta <- beta - lr * MSE_grad(beta, X_b, y_b) # SGD
+      results <- rbind(results, c(beta[1], beta[2], MSE(beta, X, y), i + b / batches_per_epoch))
+    }
+    print(paste("Updated b0 value:", round(beta[1], 8),
+                "Updated b1 value:", round(beta[2], 8),
+                "Updated MSE value:", round(MSE(beta, X, y), 8)))
+  }
+  # Diagnostic plots
+  p1 <- base_plot + geom_abline(intercept = beta00[1], slope = beta00[2], color = "blue") +
+    geom_abline(intercept = beta[1], slope = beta[2], color = "red")
+  p2 <- ggplot(results, aes(epoch, mse)) + theme_bw() + geom_line(color = "red")
+  lin_space <- expand.grid(seq(beta[1] - 2, beta[1] + 2, by = 0.1),
+                           seq(beta[2] - 2, beta[2] + 2, by = 0.1)) %>%
+    as.data.frame() %>% set_names(c("b0", "b1")) %>% rowwise() %>%
+    mutate(mse = MSE(c(b0, b1), X, y))
+  p3 <- ggplot(lin_space, aes(b0, b1)) + theme_bw() + geom_raster(aes(fill = mse)) +
+    geom_contour(colour = "white", aes(z = mse)) + scale_fill_gradient(low = "blue", high = "red") +
+    geom_line(data = results, color = "black", linetype = "dashed") +
+    geom_point(data = results, color = "black")
+  plot(grid.arrange(p1, p2, p3, layout_matrix = rbind(c(1, 2), c(3, 3))))
+  results
+}
+task3 <- SGD_linear_regression(beta00, X, y, lr, epochs, batch_size)
+```
+
+W przypadku SGD obliczenia potrzebne do aktualizacji parametrów są szybsze niż w GD, ale SGD może potrzebować więcej kroków niż GD, aby zminimalizować funkcję. Jest jeszcze jedna ważna przewaga SGD nad GD - SGD może „wydostać się” z lokalnego minimum.
+
+Kolejnym krokiem w zrozumieniu procesu optymalizacji będzie implementacja SGD dla regresji logistycznej. W przypadku regresji logistycznej nie ma rozwiązania nuerycznego, więc musimy użyć jakiegoś algorytmu
+
+```{r logistic_reg}
+sample_data <- readRDS("data/spirals.RDS")
+base_plot <- ggplot(sample_data, aes(x, y, color = as.factor(class))) + geom_point() + theme_bw()
+base_plot
+```
+
+Jak zawsze możemy sprawdzić rozwiązanie w R. R używa algorytmu scoringu Fishera lub algorytmu scoringu Newtona - algorytmy te wykorzystują nie tylko pierwszą, ale także drugą pochodną do aktualizacji parametrów. Korzystanie z drugiej pochodnej ma zalety, ale obliczenia są naprawdę czasochłonne i pochłaniają pamięć.
+
+```{r logistic_reg_r}
+logistic_model <- glm(class ~ x + y, sample_data, family = "binomial")
+summary(logistic_model)
+```
+
+Podobnie jak w przypadku regresji liniowej utworzymy macierz predykcji i wektor przewidywanych wartości:
+
+```{r logistic_reg_matrix_data}
+X <- tibble(x0 = 1, x1 = sample_data$x, x2 = sample_data$y) %>% as.matrix()
+y <- sample_data$class
+```
+
+Następnym krokiem jest zaimplementowanie funkcji **sigmoid** używanej w regresji logistycznej:
+
+```{r sigmoid}
+sigmoid <- function(x) function(x) 1 / (1 + exp(-x))
+```
+
+i jej pochodnej:
+
+```{r sigmoid_grad}
+sigmoid_grad <- function(x) sigmoid(x) * (1 - sigmoid(x))
+```
+
+W przypadku klasyfikacji binarnej naszą funkcją straty będzie **binary crossentropy**:
+
+```{r binary_crossentropy}
+binary_crossentropy <- function(beta, X, y) {
+  z <- sigmoid(beta%*%t(X))
+  -mean(y * log(z) + (1 - y) * log(1 - z))
+}
+```
+
+Potrzebujemy również gradientu. Tutaj zastosujemy tak zwaną **regułę łańcuchową** dla pochodnych:
+
+```{r binary_crossentropy_grad}
+binary_crossentropy_grad <- function(beta, X, y) {
+  z <- sigmoid(beta%*%t(X))
+  dL <- (-y / z - (1 - y) / (z - 1)) / length(y)
+  dV <- sigmoid_grad(beta%*%t(X))
+  dx <- X
+  (dL * dV) %*% dx
+}
+```
+
+Teraz mamy wszystko do zaimplementowania SGD do regresji logistycznej:
+
+```{r logistic_reg_sgd}
+beta00 <- c(0.3, 1, -0.2) # Start point
+lr <- 0.1 # Learning rate
+epochs <- 50 # Nr of epochs
+batch_size <- 20 # Batch size
+SGD_logistic_regression <- function(beta00, X, y, lr, epochs, batch_size) {
+  beta <- beta00
+  results <- tibble(
+    b0 = beta00[1], b1 = beta00[2], b2 = beta00[3], log_loss = binary_crossentropy(beta00, X, y), epoch = 0
+  )
+  batches_per_epoch <- ceiling(length(y) / batch_size)
+  for (i in 1:epochs) {
+    for (b in 1:batches_per_epoch) {
+      indexes <- ((b - 1) * batch_size + 1):min((b * batch_size), length(y))
+      X_b <- X[indexes, , drop = FALSE]
+      y_b <- y[indexes]
+      beta <- beta - lr * binary_crossentropy_grad(beta, X_b, y_b) # SGD
+      results <- rbind(results, c(beta[1], beta[2], beta[3], binary_crossentropy(beta, X, y), i + b / batches_per_epoch))
+    }
+    print(paste("Updated b0 value:", round(beta[1], 8),
+                "Updated b1 value:", round(beta[2], 8),
+                "Updated b2 value:", round(beta[3], 8),
+                "Updated LogLoss value:", round(binary_crossentropy(beta, X, y), 8)))
+  }
+  # Diagnostic plots
+  p1 <- ggplot(results, aes(epoch, log_loss)) + theme_bw() + geom_line(color = "red")
+  lin_space <- expand.grid(seq(-6, 6, by = 0.1), seq(-6, 6, by = 0.1)) %>%
+    as.data.frame() %>% set_names(c("x", "y")) %>% rowwise() %>%
+    mutate(proba = sigmoid(beta%*%c(1, x, y)),
+           class = ifelse(proba > 0.5, 1, 0))
+  p2 <- base_plot + geom_point(data = lin_space, alpha = 0.1)
+  plot(grid.arrange(p1, p2, ncol = 2))
+  results
+}
+task4 <- SGD_logistic_regression(beta00, X, y, lr, epochs, batch_size)
+```
+
+Naszym ostatnim zadaniem jest zaimplementowanie podstawowego **perceptronu jednowarstwowego** dla tego samego zadania klasyfikacyjnego. Różnica polega na tym, że będziemy musieli zaktualizować wagi dla każdej ukrytej warstwy sieci neuronowej za pomocą reguły łańcuchowej dla pochodnych, jak w przykładzie regresji logistycznej. Wagi n-tej warstwy są zależne od wag n-1 poprzednich warstw. Ta wersja SGD w sieciach neuronowych nosi nazwę algorytmu **wstecznej propagacji**.
+
+Zaczniemy od implementacji **forward step**, czyli wyliczenia outputu sieci dla danego zestawu wag:
+
+```{r forward_step}
+forward_propagation <- function(X, w1, w2) {
+  # Linear combination of inputs and weights
+  z1 <- X %*% w1
+  # Activation function - sigmoid
+  h <- sigmoid(z1)
+  # Linear combination of 1-layer hidden units and weights
+  z2 <- cbind(1, h) %*% w2
+  # Output
+  list(output = sigmoid(z2), h = h)
+}
+```
+
+Teraz czas na wsteczną propagację. Dla uproszczenia użyjemy MSE jako błędu:
+
+```{r backward_step}
+backward_propagation <- function(X, y, y_hat, w1, w2, h, lr) {
+  # w2 gradient
+  dw2 <- t(cbind(1, h)) %*% (y_hat - y)
+  # h gradient
+  dh  <- (y_hat - y) %*% t(w2[-1, , drop = FALSE])
+  # w1 gradient
+  dw1 <- t(X) %*% ((h * (1 - h) * dh))
+  # SGD
+  w1 <- w1 - lr * dw1
+  w2 <- w2 - lr * dw2
+  list(w1 = w1, w2 = w2)
+}
+```
+
+Łącząc wszystko razem:
+
+```{r single_layer_perceptron_sgd}
+hidden_units <- 5
+set.seed(666)
+w1 <- matrix(rnorm(3 * hidden_units), 3, hidden_units)
+w2 <- as.matrix(rnorm(hidden_units + 1))
+lr <- 0.1 # Learning rate
+epochs <- 50 # Nr of epochs
+batch_size <- 20 # Batch size
+SGD_single_layer_perceptron <- function(w100, w200, X, y, lr, epochs, batch_size) {
+  w1 <- w100
+  w2 <- w200
+  results <- tibble(
+    mse = mean((forward_propagation(X, w1, w2)$output - y)^2), epoch = 0
+  )
+  batches_per_epoch <- ceiling(length(y) / batch_size)
+  for (i in 1:epochs) {
+    for (b in 1:batches_per_epoch) {
+      indexes <- ((b - 1) * batch_size + 1):min((b * batch_size), length(y))
+      X_b <- X[indexes, , drop = FALSE]
+      y_b <- y[indexes]
+      ff <- forward_propagation(X_b, w1, w2)
+      bp <- backward_propagation(X_b, y_b,
+                                 y_hat = ff$output,
+                                 w1, w2,
+                                 h = ff$h,
+                                 lr = lr)
+      w1 <- bp$w1
+      w2 <- bp$w2
+      results <- rbind(results, c(mean((forward_propagation(X, w1, w2)$output - y)^2), i + b / batches_per_epoch))
+    }
+    print(paste("Updated MSE value:", round(mean((forward_propagation(X, w1, w2)$output - y)^2), 8)))
+  }
+  # Diagnostic plots
+  p1 <- ggplot(results, aes(epoch, mse)) + theme_bw() + geom_line(color = "red")
+  lin_space <- expand.grid(seq(-6, 6, by = 0.1), seq(-6, 6, by = 0.1)) %>%
+    as.data.frame() %>% set_names(c("x", "y")) %>% rowwise() %>%
+    mutate(proba = forward_propagation(c(1, x, y), w1, w2)$output,
+           class = ifelse(proba > 0.5, 1, 0))
+  p2 <- base_plot + geom_point(data = lin_space, alpha = 0.1)
+  plot(grid.arrange(p1, p2, ncol = 2))
+  results
+}
+task5 <- SGD_single_layer_perceptron(w1, w2, X, y, lr, epochs, batch_size)
+```

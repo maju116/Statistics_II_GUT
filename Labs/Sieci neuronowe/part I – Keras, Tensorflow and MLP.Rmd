@@ -1,0 +1,294 @@
+---
+title: "part I - Keras, Tensorflow and MLP"
+author: "Michał Maj"
+output: html_notebook
+---
+
+Zanim zaczniemy budować sieci neuronowe za pomocą Keras, zobaczmy, jak R komunikuje się z Pythonem.
+
+```{r python_config}
+library(keras)
+library(reticulate)
+library(tidyverse)
+library(gridExtra)
+library(deepviz)
+# install_keras() Keras installation form R
+py_config() # Current config info
+# Using commands below you can set up correct python path/env:
+# use_python("/usr/local/bin/python")
+# use_virtualenv("~/myenv")
+# use_condaenv("myenv")
+# You can also use RETICULATE_PYTHON system variable
+Sys.getenv("RETICULATE_PYTHON")
+# readLines(".Rprofile")
+```
+
+```{r reticulate_example}
+np <- import("numpy")
+np$max(c(4, 7, 2))
+```
+
+W Keras możemy tworzyć modele na dwa różne sposoby:
+- zbudować model sekwencyjny - nakładamy nowe warstwy na poprzednie. Nie możemy używać wielu inputów i outputów w modelu.
+- używając API funkcyjnego - pozwala na uzycie wieli inputów i uotputów.
+
+Zaczniemy od modelu sekwencyjnego. Musimy zacząć od inicjalizacji modelu:
+
+```{r sequential_model}
+load("data/boston.RData")
+# Check shape of the data
+boston_train_X %>% dim() # Two dim tensor
+boston_train_Y %>% dim() # One dim tensor
+
+boston_model <- keras_model_sequential()
+```
+
+W następnym kroku możemy dodać kilka warstw (pamiętaj, że nie musimy ponownie przypisywać modelu za pomocą `<-`):
+
+```{r add_layer}
+boston_model %>% layer_dense(units = 16, # Number of neurons in the layer
+                             activation = "tanh", # Activation function
+                             input_shape = c(13)) # Nr of predictors. always in first layer!
+boston_model
+```
+
+Dlaczego mamy 224 parametry?
+
+```{r nr_of_params}
+13 * 16 + 16
+```
+
+Po dodaniu warstwy ukrytej możemy dodać warstwę wyjściową:
+
+```{r add_output_layer}
+boston_model %>%
+  layer_dense(units = 1,
+              activation = "linear")
+boston_model
+```
+
+Możemy teraz skonfigurować model do treningu. Użyjemy SGD jako optymalizatora, MSE jako funkcji straty i dodamy MAE jako dodatkową metrykę.
+
+```{r model_compilation}
+boston_model %>% compile(
+  optimizer = "sgd",
+  loss = "mse",
+  metrics = c("mae")
+)
+```
+
+Jesteśmy gotowi do trenowania naszej pierwszej sieci neuronowej:
+
+```{r model_training}
+history <- boston_model %>%
+  fit(x = boston_train_X,
+      y = boston_train_Y,
+      validation_split = 0.2, # 20% of the data for validation
+      epochs = 5, # Number of "loops" over whole dataset
+      batch_size = 30, # Sample size for one run of SGD
+      verbose = 1)
+```
+
+Możemy teraz ocenić wytrenowany model w testowym zestawie danych:
+
+```{r model_evaluation}
+boston_model %>%
+  evaluate(boston_test_X, boston_test_Y)
+```
+
+I policzyć predykcje:
+
+```{r prediction}
+boston_predictions <- boston_model %>% predict(boston_test_X)
+head(boston_predictions)
+```
+
+Na koniec możemy zapisać nasz model na dysku twardym:
+
+```{r save_model}
+if (!dir.exists("models")) dir.create("models")
+save_model_hdf5(boston_model, "models/boston_model.hdf5")
+```
+
+Wiemy już, jak używać MLP do zadań regresji, sprawdźmy, jak używać go do problemów klasyfikacyjnych. Zaczniemy od klasyfikacji binarnej:
+
+```{r load_bin_class_data}
+load("data/bin_class.RData")
+ggplot(bin_class_data, aes(x, y, color = factor(class))) + theme_bw() + geom_point()
+```
+
+Musimy przekształcić dane w tensory:
+
+```{r data_to_tensors}
+ind <- sample(1:nrow(bin_class_data), 0.8*nrow(bin_class_data))
+bin_class_train_X <- bin_class_data[ind, c("x", "y")] %>% as.matrix()
+bin_class_train_Y <- bin_class_data[ind, "class", drop = TRUE]
+bin_class_test_X <- bin_class_data[-ind, c("x", "y")] %>% as.matrix()
+bin_class_test_Y <- bin_class_data[-ind, "class", drop = TRUE]
+```
+
+Stwórzmy kilka prostych modeli:
+
+```{r bin_model}
+# TASK: Create a sequential model with:
+# a) one hidden layer b) two hidden layers
+# Check variants with 2, 4 and 8 units in first layer
+# Check variants with relu, tanh, sigmoid activations
+# Add l1/l2 regularization using 'activity_regularizer' argument and regularizer_l1/2() functions
+# Compile model with binary crossentropy as loss and SGD optimizer
+# Fit the model using 10% of the data for validation, 100 epochs and batch_size of 100. Save runs to 'history' object. Use 'verbose' = 0.
+# Evaluate model on the test data
+bin_model <- keras_model_sequential() %>%
+  layer_dense(8, input_shape = c(2), activation = "relu",
+              activity_regularizer = regularizer_l1(l = 0.3)) %>%
+  layer_dense(1, activation = "sigmoid") %>%
+  compile(loss = 'binary_crossentropy',
+          optimizer = 'sgd',
+          metrics = c('accuracy'))
+history <- bin_model %>% fit(x = bin_class_train_X,
+                             y = bin_class_train_Y,
+                             validation_split = 0.1,
+                             epochs = 100,
+                             batch_size = 100,
+                             verbose = 0)
+bin_model %>% evaluate(bin_class_test_X, bin_class_test_Y)
+
+history$metrics$epoch <- 1:100 # Epochs
+history_df <- as.data.frame(history$metrics)
+ggplot(history_df, aes(epoch, accuracy)) + theme_bw() + geom_line(color = "red") + geom_line(aes(y = val_accuracy), color = "blue")
+```
+
+```{r bin_model_plot}
+predictions <- bin_model %>% predict(square_data) %>% cbind(square_data) %>%
+  as.data.frame() %>% set_names(c("proba", "x", "y"))
+ggplot(predictions, aes(x, y)) + theme_bw() + geom_raster(aes(fill = proba)) + geom_contour(colour = "white", aes(z = proba)) + scale_fill_gradient(low = "red", high = "blue") + geom_point(data = bin_class_data, aes(x, y, color = factor(class)))
+```
+
+W podobny sposób możemy zbudować model sekwencyjny dla problemu klasyfikacji wieloklasowej:
+
+```{r fashion_mnist}
+load("data/fashion_mnist.RData")
+xy_axis <- data.frame(x = expand.grid(1:28, 28:1)[, 1],
+                      y = expand.grid(1:28, 28:1)[, 2])
+plot_theme <- list(
+  raster = geom_raster(hjust = 0, vjust = 0),
+  gradient_fill = scale_fill_gradient(low = "white", high = "black", guide = FALSE),
+  theme = theme_void()
+)
+
+sample_plots <- sample(1:nrow(fashion_mnist_train_X), 100) %>% map(~ {
+  plot_data <- cbind(xy_axis, fill = data.frame(fill = fashion_mnist_train_X[.x, ]))
+  ggplot(plot_data, aes(x, y, fill = fill)) + plot_theme
+})
+
+do.call("grid.arrange", c(sample_plots, ncol = 10, nrow = 10))
+```
+
+Oprócz regularyzacji l1 / l2 możemy również użyć regularyzacji dropout. W tym zadaniu zbudujesz wielowarstwowy MLP z regularyzacją dropout:
+
+```{r fashion_mnist_model}
+# TASK: Create MLP for fashion MNIST classification.
+# Change labels vectors to one-hot-encoding matrix using to_categorical() function
+
+# Scale pixel values to [0, 1] interval
+
+# Model architecture:
+# Dense layer with 512 units and "relu" activation
+# Dropout layer with 20% drop rate
+# Dense layer with 512 units and "relu" activation
+# Dropout layer with 20% drop rate
+# Output dense layer (how many units and what activation should You use?)
+
+# Set SGD as optimizer and use categorical crossentropy as loss function. Use accuracy as additional metric.
+
+# Fit the model. Use 20% of the data for validation, 20 epochs and 128 samples for batch size.
+
+# Evaluate model on test set.
+
+fashion_mnist_train_Y <- fashion_mnist_train_Y %>% to_categorical(., 10)
+fashion_mnist_test_Y <- fashion_mnist_test_Y  %>% to_categorical(., 10)
+
+fashion_mnist_train_X <- fashion_mnist_train_X / 255
+fashion_mnist_test_X <- fashion_mnist_test_X/ 255
+
+fashion_model <- keras_model_sequential() %>%
+  layer_dense(units = 512, activation = "relu", input_shape = 784) %>%
+  layer_dropout(0.2) %>%
+  layer_dense(units = 512, activation = "relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(units = 10, activation = "softmax")
+
+fashion_model %>% compile(
+  optimizer = "sgd",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <- fashion_model %>%
+  fit(x = fashion_mnist_train_X,
+      y = fashion_mnist_train_Y,
+      validation_split = 0.2,
+      epochs = 20,
+      batch_size = 128)
+
+fashion_model %>% evaluate(fashion_mnist_test_X, fashion_mnist_test_Y)
+```
+
+Trenowanie sieci neuronowej może zająć dużo czasu, a rozwiązanie rzeczywistego problemu może zająć dni, tygodnie, a nawet miesiące. W tym czasie wiele rzeczy może pójść nie tak, na przykład jeśli twój komputer zresetuje się z nieznanego powodu, stracisz cały postęp i dużo czasu! Aby rozwiązać ten problem, możemy dodać punkt kontrolny modelu, który będzie zapisywać model w każdej epoce. Punkt kontrolny modelu jest jednym z wielu wywołań zwrotnych, których możesz używać w Keras podczas procesu szkolenia:
+
+```{r model_checkpoint}
+# Create a new model for binary classification and compile it.
+
+# Fit the model and use `callbacks` argument with `model_checkpoint`
+bin_model <- keras_model_sequential() %>%
+  layer_dense(8, input_shape = c(2), activation = "relu",
+              activity_regularizer = regularizer_l1(l = 0.3)) %>%
+  layer_dense(1, activation = "sigmoid") %>%
+  compile(loss = 'binary_crossentropy',
+          optimizer = 'sgd',
+          metrics = c('accuracy'))
+model_checkpoint <- callback_model_checkpoint(filepath = "models/bin_model.{epoch:02d}-{val_loss:.2f}.hdf5",
+                                              monitor = "val_loss",
+                                              period = 1)
+history <- bin_model %>% fit(x = bin_class_train_X,
+                             y = bin_class_train_Y,
+                             validation_split = 0.1,
+                             epochs = 100,
+                             batch_size = 100,
+                             verbose = 1,
+                             callbacks = model_checkpoint)
+```
+
+To świetnie, teraz możemy wznowić trening w dowolnym momencie. Wywołania zwrotne mogą nam również pomóc w nadmiernym dopasowaniu i długim czasie obliczeń. Jak widzieliście w poprzednich przykładach, niektóre modele mają tendencję do nadmiernego dopasowania, jeśli liczba epok jest zbyt duża. Byłoby wspaniale poinformować Keras, że chcielibyśmy przestać trenować nasz model, na przykład, gdyby dokładność walidacji nie wzrosła w kilku epokach. Ta metoda nazywa się wczesnym stopowaniem i w Kerasie możemy utworzyć wywołanie zwrotne dla tego zadania:
+
+```{r early_stopping}
+# Create a new model for binary classification and compile it.
+
+# Fit the model and use `callbacks` argument with:
+# Create model checkpoint that will save best model into "models/bin_model.best.hdf5". Use validation accuracy as monitored quantity. Set `save_best_only` argument to TRUE to save only the model with best weights.
+# Create early stopping callback using `callback_early_stopping` function. Set the same monitor as in model checkpoint and set `patience` to 3 epochs.
+bin_model <- keras_model_sequential() %>%
+  layer_dense(4, input_shape = c(2), activation = "tanh",
+              activity_regularizer = regularizer_l1(l = 0.3)) %>%
+  layer_dense(1, activation = "sigmoid") %>%
+  compile(loss = 'binary_crossentropy',
+          optimizer = 'sgd',
+          metrics = c('accuracy'))
+model_checkpoint <- callback_model_checkpoint(filepath = "models/bin_model.best.hdf5",
+                                              monitor = "val_accuracy",
+                                              period = 1)
+early_stopping <- callback_early_stopping(monitor = "val_accuracy", patience = 3)
+history <- bin_model %>% fit(x = bin_class_train_X,
+                             y = bin_class_train_Y,
+                             validation_split = 0.1,
+                             epochs = 100,
+                             batch_size = 100,
+                             verbose = 1,
+                             callbacks = list(model_checkpoint, early_stopping))
+```
+
+Wiesz już, że możesz wyświetlić architekturę modelu, po prostu printując model w konsoli, ale czasami wygodnie jest wyświetlić go jako wykres.
+
+```{r graph}
+fashion_model %>% plot_model()
+```
