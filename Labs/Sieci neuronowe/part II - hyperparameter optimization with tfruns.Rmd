@@ -32,7 +32,7 @@ runs <- tuning_run(
     units = c(2, 8),
     activation = c("tanh", "relu"),
     dropout = c(0.2, 0.4),
-    batch_size = c(50, 100)
+    batch_size = c(5, 10)
   ),
   runs_dir = "runs", # Where to save training runs ?
   confirm = FALSE) # Confirm running ?

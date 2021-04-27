@@ -1,0 +1,289 @@
+---
+title: "part V - Fine-tuning and data generators"
+author: "Michał Maj"
+output: html_notebook
+---
+
+```{r packages}
+library(keras)
+library(tidyverse)
+```
+
+Czas porozmawiać o słoniu w pokoju! Obrazy z życia wzięte (zbiory danych) nie wyglądają jak FASHION MNIST - w prawdziwym życiu mielibyśmy obrazy o różnych wysokościach i szerokościach, w znacznie większej rozdzielczości. Spójrz na zdjęcia z poniższych katalogów:
+
+```{r alien_predator}
+train_dir <- "data/alien-vs-predator/train/"
+validation_dir <- "data/alien-vs-predator/validation/"
+test_dir <- "data/alien-vs-predator/test/"
+```
+
+W przypadku zbioru danych "alien vs predator" musielibyśmy zaimportować wszystkie obrazy do `R` i przekształcić je w odpowiednie tensory, aby zbudować model w `keras`. Teraz prawdopodobnie widzisz wąskie gardło - `R` jest bardzo wolne (`Python` jest tylko wolne), więc gdybyśmy mieli na przykład miliony obrazów, zajęłoby to całe wieki i prawdopodobnie zabrakłoby nam pamięci. Na szczęście w `keras` istnieje sposób na uniknięcie wczytywania danych do `R` - możemy użyć **generatorów danych** i **przepływów**.
+
+Zaczniemy od stworzenia prostego generatora danych dla zbioru treningowego i walidacyjnego, który powie `keras` jak przekształcać obrazy:
+
+```{r image_data_generator}
+train_datagen <- image_data_generator(
+  rescale = 1/255, # changes pixel range from [0, 255] to [0, 1]
+)
+validation_datagen <- image_data_generator(
+  rescale = 1/255
+)
+```
+
+W kolejnym kroku musimy stworzyć flow obrazu:
+
+```{r flow_images_from_directory}
+train_flow <- flow_images_from_directory(
+  directory = train_dir, # Path for train images folder
+  generator = train_datagen, # Generator
+  color_mode = "rgb", # Images are in color
+  target_size = c(150, 150), # Scale all images to 150x150
+  batch_size = 32, # Batch size
+  class_mode = "categorical" # Classification task
+)
+
+validation_flow <- flow_images_from_directory(
+  directory = validation_dir,
+  generator = validation_datagen,
+  color_mode = "rgb",
+  target_size = c(150, 150),
+  batch_size = 32,
+  class_mode = "categorical"
+)
+```
+
+Jeśli chcemy, możemy sprawdzić przykładowe obrazy z naszego flow:
+
+```{r generator_next}
+batch <- generator_next(train_flow)
+
+for (i in 1:4) {
+  plot(as.raster(batch[[1]][i,,,]))
+}
+```
+
+Teraz czas na zbudowanie naszego pierwszego modelu:
+
+```{r alien_predator_model_1}
+alien_predator_model_1 <- keras_model_sequential() %>%
+  layer_conv_2d(
+    filter = 64, kernel_size = c(3, 3), padding = "same",
+    input_shape = c(150, 150, 3), activation = "linear") %>%
+  layer_batch_normalization() %>%
+  layer_activation("relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2), strides = c(2, 2)) %>%
+  layer_dropout(0.25) %>%
+  layer_flatten() %>%
+  layer_dense(512, activation = "relu") %>%
+  layer_dropout(0.25) %>%
+  layer_dense(2, activation = "softmax")
+
+alien_predator_model_1 %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = optimizer_rmsprop(),
+  metrics = c("accuracy"))
+```
+
+Aby wytrenować model za pomocą generatora danych, musimy skorzystać ze specjalnej funkcji:
+
+```{r fit_generator}
+history <- alien_predator_model_1 %>% fit_generator(
+  train_flow, 
+  steps_per_epoch = 22, # ceiling(694 / 32)
+  epochs = 15,
+  validation_data = validation_flow,
+  validation_steps = 6 # ceiling(184 / 32)
+)
+```
+
+W podobny sposób możemy ocenić model na zbiorze testowym:
+
+```{r evaluate_generator}
+test_datagen <- image_data_generator(rescale = 1/255)
+
+test_generator <- flow_images_from_directory(
+  test_dir,
+  test_datagen,
+  target_size = c(150, 150),
+  color_mode = "rgb",
+  batch_size = 1,
+  class_mode = "categorical"
+)
+
+# Evaluate on test set
+alien_predator_model_1 %>% evaluate_generator(test_generator, steps = 18)
+```
+
+i policzyć predykcje:
+
+```{r predict_generator}
+alien_predator_model_1 %>%
+  predict_generator(
+    test_generator,
+    steps = 18)
+```
+
+Jak widać, nasz model daleki jest od doskonałości. Nauczmy się nowych sztuczek. Jak zapewne wiesz, jeśli wielkość twojej próbki jest mała, najlepszą rzeczą, jaką możesz zrobić, jest jej zwiększenie. W naszym przypadku moglibyśmy zebrać więcej zdjęć, ale co zrobić, jeśli to niemożliwe? Możemy generować nowe próbki w procesie **augmentacji danych**. Na szczęście dla nas jest to bardzo proste, musimy tylko dodać kilka dodatkowych argumentów do generatora danych treningowych:
+
+```{r data_augumentation}
+train_datagen <- image_data_generator(
+  rescale = 1/255, # changes pixel range from [0, 255] to [0, 1]
+  rotation_range = 35,
+  width_shift_range = 0.3,
+  height_shift_range = 0.3,
+  zoom_range = 0.2,
+  horizontal_flip = TRUE
+)
+
+validation_datagen <- image_data_generator(rescale = 1/255)
+
+train_flow <- flow_images_from_directory(
+  directory = train_dir,
+  generator = train_datagen,
+  color_mode = "rgb",
+  target_size = c(150, 150),
+  batch_size = 32,
+  class_mode = "categorical"
+)
+
+validation_flow <- flow_images_from_directory(
+  directory = validation_dir,
+  generator = validation_datagen,
+  color_mode = "rgb",
+  target_size = c(150, 150),
+  batch_size = 32,
+  class_mode = "categorical"
+)
+
+batch <- generator_next(train_flow)
+
+for (i in 1:4) {
+  plot(as.raster(batch[[1]][i,,,]))
+}
+```
+
+Od tego momentu budowanie architektury CNN i dopasowywanie modelu wyglądałoby dokładnie tak samo, ale jest jeszcze jedna bardzo potężna metoda, której możemy użyć do stworzenia lepszego modelu. Użyjemy **fine-tuningu**, będącego jedną z wielu metod z pola **transfer learning**. W krótkim podsumowaniu, jeśli masz wstępnie wytrenowany model dopasowany do dużego zbioru danych, który jest w pewien sposób podobny do innych danych, możesz dostroić ten model do pracy na innych danych.
+
+Aby dokonać fine-tuningu w `keras`, musimy zacząć od wcześniej wytrenowanego modelu. W `keras` mamy dostęp do kilku różnych architektur wstępnie przeszkolonych w zbiorze danych **ImageNet** zawierającym miliony obrazów z ponad 1000 klas.
+
+```{r application_vgg16}
+conv_base <- application_vgg16(
+  weights = "imagenet", # Weights trained on 'imagenet'
+  include_top = FALSE, # Without dense layers on top - we will add them later
+  input_shape = c(150, 150, 3) # Same shape as in our generators
+)
+```
+
+Jak pamiętacie, filtry CNN w pierwszych warstwach przedstawiają podstawowe zmienne, takie jak linie, krzywe itp. Te zmienne będą przydatne w naszym tuningowanym modelu, więc CNN nie musi uczyć się tego od nowa. Będziemy interesować się tylko zmiennymi w kilku ostatnich warstwach, które reprezentują specyficzne cechy dla naszego zadania. Na początku musimy zamrozić wagi CNN:
+
+```{r freeze_weights}
+freeze_weights(conv_base, from = "block1_conv1", to = "block2_pool")
+```
+
+W następnym kroku musimy dodać warstwę wyjściową (i dodatkowe warstwy, jeśli chcemy) na wierzchu bazy konwolucyjnej i skompilować cały model:
+
+```{r output_layer}
+alien_predator_model_2 <- keras_model_sequential() %>%
+  conv_base %>%
+  layer_flatten() %>%
+  layer_dense(units = 256, activation = "relu") %>%
+  layer_dense(units = 2, activation = "softmax")
+
+alien_predator_model_2 %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = optimizer_rmsprop(lr = 1e-5), # Small lr for fine-tuning
+  metrics = c("accuracy"))
+
+alien_predator_model_2
+```
+
+Dopasowanie modelu i ewaluacja wygląda tak samo:
+
+```{r fine_tuning_fit}
+history <- alien_predator_model_2 %>% fit_generator(
+  train_flow, 
+  steps_per_epoch = 22, # ceiling(694 / 32)
+  epochs = 15,
+  validation_data = validation_flow,
+  validation_steps = 6 # ceiling(184 / 32)
+)
+
+test_datagen <- image_data_generator(rescale = 1/255)
+
+test_generator <- flow_images_from_directory(
+  test_dir,
+  test_datagen,
+  target_size = c(150, 150),
+  color_mode = "rgb",
+  batch_size = 1,
+  class_mode = "categorical"
+)
+
+alien_predator_model_2 %>% evaluate_generator(test_generator, steps = 18)
+
+save_model_hdf5(alien_predator_model_2, "models/alien_predator_model.hdf5")
+```
+
+Teraz twoja kolej! Utwórz CNN za pomocą generatora danych i przepływów, aby sklasyfikować obrazy gestów języka migowego. Tym razem nie stosuj fine-tuningu.
+
+```{r sign_mnist_ex}
+train_path <- "data/sign-language-mnist/train/"
+test_path <- "data/sign-language-mnist/test/"
+
+train_datagen <- image_data_generator(
+  rescale = 1/255, # changes pixel range from [0, 255] to [0, 1]
+  rotation_range = 10,
+  width_shift_range = 0.1,
+  height_shift_range = 0.1,
+  zoom_range = 0.1,
+  horizontal_flip = FALSE
+)
+
+validation_datagen <- image_data_generator(rescale = 1/255)
+
+train_flow <- flow_images_from_directory(
+  directory = train_path,
+  generator = train_datagen,
+  color_mode = "grayscale",
+  target_size = c(28, 28),
+  batch_size = 32,
+  class_mode = "categorical"
+)
+
+validation_flow <- flow_images_from_directory(
+  directory = test_path,
+  generator = validation_datagen,
+  color_mode = "grayscale",
+  target_size = c(28, 28),
+  batch_size = 32,
+  class_mode = "categorical"
+)
+
+sign_mnist_model <- keras_model_sequential() %>%
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = 'relu',
+                input_shape = c(28, 28, 1)) %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 64, kernel_size = c(3, 3),  activation = 'relu') %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_dropout(rate = 0.25) %>%
+  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = 'relu') %>%
+  layer_dropout(rate = 0.40) %>%
+  layer_flatten() %>%
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dropout(rate = 0.3) %>%
+  layer_dense(units = 24, activation = 'softmax')
+
+sign_mnist_model %>% compile(
+  loss = loss_categorical_crossentropy,
+  optimizer = optimizer_adadelta(),
+  metrics = "accuracy"
+)
+
+history <- sign_mnist_model %>% fit_generator(
+  train_flow,
+  steps_per_epoch = 858,
+  epochs = 15,
+  validation_data = validation_flow,
+  validation_steps = 225
+)
+```
