@@ -32,7 +32,7 @@ Wniosek, jeśli nie możemy bezpośrednio znaleźć minimum funkcji `f(x)`, zaws
 
 ```{r ordinary_function_GD}
 x0 <- 1.345 # Start point
-lr <- 0.1 # Learning rate
+lr <- 0.01 # Learning rate
 epochs <- 30 # Nr of epochs (updates)
 GD_ordinary_fun <- function(f, grad_f, x0, lr, epochs) {
   x <- x0
@@ -135,7 +135,7 @@ Wiemy teraz, czym jest Gradient Descent i jak go używać do rozwiązywania prob
 beta00 <- c(5, -0.2) # Start point
 lr <- 0.1 # Learning rate
 epochs <- 50 # Nr of epochs
-batch_size <- 3 # Batch size
+batch_size <- 30 # Batch size
 SGD_linear_regression <- function(beta00, X, y, lr, epochs, batch_size) {
   beta <- beta00
   results <- tibble(
@@ -199,7 +199,7 @@ y <- sample_data$class
 Następnym krokiem jest zaimplementowanie funkcji **sigmoid** używanej w regresji logistycznej:
 
 ```{r sigmoid}
-sigmoid <- function(x) function(x) 1 / (1 + exp(-x))
+sigmoid <- function(x) 1 / (1 + exp(-x))
 ```
 
 i jej pochodnej:
