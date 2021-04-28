@@ -1,0 +1,245 @@
+---
+title: "part VI - Autoencoders"
+author: "Michał Maj"
+output: html_notebook
+---
+
+```{r packages}
+library(keras)
+library(tidyverse)
+library(ROCR)
+```
+
+Autoenkodery mogą być używane do wielu różnych rzeczy, takich jak segmentacja obrazu, redukcja wymiarowości, wykrywanie anomalii i wiele innych. Dzisiaj zaczniemy od prostego autoenkodera odszumiającego. Użyjemy zestawu danych MNIST dostępnego w Keras:
+
+```{r mnist}
+mnist <- dataset_mnist()
+
+mnist_train_X <- mnist$train$x / 255
+mnist_test_X <- mnist$test$x / 255
+
+mnist_train_X <- array_reshape(mnist_train_X, c(nrow(mnist_train_X), 28, 28, 1))
+mnist_test_X <- array_reshape(mnist_test_X, c(nrow(mnist_test_X), 28, 28, 1))
+```
+
+W zadaniu odszumiania wprowadzamy do autoenkodera oryginalne obrazy (danye) z dodanym szumem. Wyjście to po prostu oryginalny obraz (dane). Chcemy zminimalizować **błąd rekonstrukcji** między zaszumionym a oryginalnym obrazem. Aby to zrobić, musimy najpierw utworzyć zestaw danych pociągu zaszumionego:
+
+```{r noise_add_mnist}
+clip_pixels <- function(tensor, min_value, max_value) {
+  ifelse(tensor <= min_value,  min_value, ifelse(tensor >= max_value, max_value, tensor))
+}
+
+mnist_train_X_noise <- (mnist_train_X + rnorm(28 * 28 * 60000, 0, 0.5)) %>% clip_pixels(., 0, 1)
+mnist_test_X_noise <- (mnist_test_X + rnorm(28 * 28 * 10000, 0, 0.5)) %>% clip_pixels(., 0, 1)
+```
+
+Teraz możemy zbudować prosty autoenkoder odszumiający:
+
+```{r denoising_autoencoder_mnist}
+# Ex. Create denosing autoencoder.
+# 1. Model architecture:
+# 2D convolution with 32 filters of size 3x3, 1x1 stride, 'relu' activation, "same" padding
+# 2D max pooling size 2x2, 2x2 stride, "same" padding
+# 2D convolution with 32 filters of size 3x3, 1x1 stride, 'relu' activation, "same" padding
+# 2D max pooling size 2x2, 2x2 stride, "same" padding
+# 2D convolution with 32 filters of size 3x3, 1x1 stride, 'relu' activation, "same" padding
+# 2D upsampling layer of size 2x2
+# 2D convolution with 32 filters of size 3x3, 1x1 stride, 'relu' activation, "same" padding
+# 2D upsampling layer of size 2x2
+# 2D convolution with 1 filters of size 3x3, 1x1 stride, 'sigmoid' activation, "same" padding
+
+  # Eccoder
+autoencoder <- keras_model_sequential() %>%
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = 'relu',
+                input_shape = c(28, 28, 1), padding = 'same') %>%
+  layer_max_pooling_2d(pool_size = c(2, 2), padding = 'same') %>%
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = 'relu',
+                padding = 'same') %>%
+  layer_max_pooling_2d(pool_size = c(2, 2), padding = 'same') %>%
+   # Decoder
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = 'relu',
+                padding = 'same') %>%
+  layer_upsampling_2d(size = c(2, 2)) %>%
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = 'relu',
+                padding = 'same') %>%
+  layer_upsampling_2d(size = c(2, 2)) %>%
+  layer_conv_2d(filters = 1, kernel_size = c(3, 3), activation = 'sigmoid',
+                padding = 'same')
+```
+
+Będziemy używać funkcji `binary_crossentropy` jako funkcji straty do porównań danych wejściowych i wyjściowych w ujęciu pikselowym (można to traktować jako klasyfikację binarną dla każdego piksela).
+
+```{r denoising_autoencoder_mnist_loss}
+autoencoder %>% compile(
+  loss = 'binary_crossentropy',
+  optimizer = 'adam'
+)
+```
+
+Teraz możemy dopasować model:
+
+```{r denoising_autoencoder_mnist_fit}
+history <- autoencoder %>%
+  fit(x = mnist_train_X_noise,
+      y = mnist_train_X,
+      epochs = 30,
+      batch_size = 128,
+      validation_split = 0.2
+  )
+```
+
+Zobaczmy prognozy dotyczące zestawu testowego z szumami:
+
+```{r denoising_autoencoder_mnist_predict}
+autoencoder_predictions <- autoencoder %>% predict(mnist_test_X_noise)
+
+plot_mnist <- function(im) image(1:28, 1:28, im, col = gray((0:255)/255))
+par(mfcol = c(3, 6))
+par(mar = c(0, 0, 3, 0), xaxs = 'i', yaxs = 'i')
+for (i in 7:12) {
+  orginal <- t(apply(mnist_test_X[i,,,], 2, rev))
+  noisy <- t(apply(mnist_test_X_noise[i,,,], 2, rev))
+  reconstructed <- t(apply(autoencoder_predictions[i,,,], 2, rev))
+  plot_mnist(orginal)
+  plot_mnist(noisy)
+  plot_mnist(reconstructed)
+}
+```
+
+Z powyższego przykładu widzieliście, że w zadaniu oznaczającym byliśmy zainteresowani wyjściem **dekodera** (rekonstrukcja), teraz użyjemy autoenkoderów do redukcji wymiarowości. Tym razem będziemy zainteresowani wyjściem **enkodera** (reprezentacja niskowymiarowa). Po raz kolejny wykorzystamy zbiór danych MNIST. Tym razem chcemy zbudować autoenkoder oparty na MLP, więc będziemy musieli przekształcić dane w wektory:
+
+```{r mnist_reshape}
+# Ex. Create dim reduction autoencoder.
+# 1. Reshape train/test set into 2d arrays (60000, 784)
+mnist_train_X_vec <- array_reshape(mnist_train_X, c(60000, 784))
+mnist_test_X_vec <- array_reshape(mnist_test_X, c(10000, 784))
+```
+
+Tym razem nie możemy po prostu skorzystać z modelu sekwencyjnego, będziemy musieli skorzystać z funkcjonalnego API:
+
+```{r mnist_dr_autoencoder}
+# 2. Create input layer with input_layer() function. Set correct shape parameter.
+input <- layer_input(shape = c(784))
+
+# 3. Create encoder architecture. On top of input add:
+# Dense layer with 128 neurons and 'relu' activation
+# Dense layer with 64 neurons and 'relu' activation
+# Dense layer with 32 neurons and 'relu' activation
+encoder <- input %>%
+  layer_dense(128, activation = 'relu') %>%
+  layer_dense(64, activation = 'relu') %>%
+  layer_dense(32, activation = 'relu')
+
+# 4. Create decoder architecture. On top of encoder add:
+# Dense layer with 64 neurons and 'relu' activation
+# Dense layer with 128 neurons and 'relu' activation
+# Dense layer with 784 neurons and 'relu' activation
+decoder <- encoder %>%
+  layer_dense(64, activation = 'relu') %>%
+  layer_dense(128, activation = 'relu') %>%
+  layer_dense(784, activation = 'relu')
+
+# 5. Create autoencoder model using functional API - keras_model() function
+autoencoder <- keras_model(input, decoder)
+# 6. Create encoder model using functional API - keras_model() function
+encoder_model <- keras_model(input, encoder)
+```
+
+Skompilujemy model z `mse` jako funkcją straty:
+
+```{r mnist_dr_autoencoder_compile}
+autoencoder %>% compile(
+  loss = 'mse',
+  optimizer = 'adam'
+)
+```
+
+Teraz możemy dopasować model. Pamiętaj, że tym razem wejście i wyjście są takie same!
+
+```{r mnist_dr_autoencoder_fit}
+history <- autoencoder %>%
+  fit(x = mnist_train_X_vec,
+      y = mnist_train_X_vec,
+      epochs = 30,
+      batch_size = 128,
+      validation_split = 0.2
+  )
+```
+
+Teraz możemy sprawdzić rekonstrukcje i reprezentacje niskowymiarowe:
+
+```{r mnist_dr_autoencoder_predict}
+autoencoder_predictions <- autoencoder %>% predict(mnist_test_X_vec)
+encoder_predictions <- encoder_model %>% predict(mnist_test_X_vec)
+
+plot_mnist <- function(im, x, y) image(1:x, 1:y, im, col = gray((0:255)/255))
+par(mfcol = c(3, 6))
+par(mar = c(0, 0, 3, 0), xaxs = 'i', yaxs = 'i')
+for (i in 7:12) {
+  orginal <- t(apply(matrix(mnist_test_X_vec[i,], 28, 28, byrow = TRUE), 2, rev))
+  low_dim <- matrix(encoder_predictions[i,], 2, 16) %>% `/`(max(.))
+  reconstructed <- t(apply(matrix(autoencoder_predictions[i,], 28, 28, byrow = TRUE), 2, rev))
+  plot_mnist(orginal, 28, 28)
+  plot_mnist(low_dim, 2, 16)
+  plot_mnist(reconstructed, 28, 28)
+}
+```
+
+W ostatnim zadaniu użyjemy autoenkoderów do wykrywania anomalii. Będziemy korzystać ze zbioru danych dotyczących oszustw kredytowych:
+
+```{r creditcard}
+load("data/creditcard.RData")
+table(creditcard_train_Y)
+```
+
+W zadaniu wykrywania anomalii interesuje nas znalezienie próbek (transakcji), które mają duży błąd rekonstrukcji, co może nam powiedzieć, że jest w nich coś niezwykłego. W tym zadaniu możemy użyć modelu sekwencyjnego podobnie jak w zadaniu odszumiającym.
+
+```{r creditcard_am_autoencoder}
+# Ex. Create anomaly detection autoencoder
+# 1. Architecture. Start with sequential model and add:
+# Dense layer with 14 neurons and 'tanh' activation and l1 activity regularization with lambda = 10e-5
+# Dense layer with 7 neurons and 'relu' activation
+# Dense layer with 7 neurons and 'tanh' activation
+# Dense layer with 29 neurons and 'relu' activation
+autoencoder <- keras_model_sequential() %>%
+  layer_dense(14, activation = 'tanh', input_shape = c(29),
+              activity_regularizer = regularizer_l1(10e-5)) %>%
+  layer_dense(7, activation = 'relu') %>%
+  layer_dense(7, activation = 'tanh') %>%
+  layer_dense(29, activation = 'relu')
+```
+
+Skompilujemy model z `mse` jako funkcją straty:
+
+```{r creditcard_am_autoencoder_compile}
+autoencoder %>% compile(
+  loss = 'mse',
+  optimizer = 'adam'
+)
+```
+
+teraz możemy dopasować model:
+
+```{r creditcard_am_autoencoder_fit}
+history <- autoencoder %>%
+  fit(x = creditcard_train_X,
+      y = creditcard_train_X,
+      epochs = 30,
+      batch_size = 32,
+      validation_split = 0.2
+  )
+```
+
+Teraz możemy obliczyć błąd rekonstrukcji zestawu testowego i znaleźć najlepszy punkt odcięcia dla oszustwa związanego z kartą kredytową:
+
+```{r creditcard_am_autoencoder_cutoff}
+predictions <- autoencoder %>% predict(creditcard_test_X)
+reconstruction_error <- apply((creditcard_test_X - predictions)^2, 1, mean)
+results <- tibble(reconstruction_error = reconstruction_error, fraud = creditcard_test_Y)
+
+pred <- prediction(results$reconstruction_error, results$fraud)
+f.scores <- performance(pred, "f", alpha = 0.0005)
+best_cutoff <- f.scores@x.values[[1]][which.max(f.scores@y.values[[1]])]
+table(results$fraud, results$reconstruction_error > best_cutoff)
+ggplot(results, aes(reconstruction_error, fill = as.factor(fraud))) + geom_histogram(bins = 100) + theme_bw() + facet_grid(fraud ~ ., scales = "free") + geom_vline(xintercept = best_cutoff)
+```

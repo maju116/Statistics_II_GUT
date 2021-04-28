@@ -84,10 +84,10 @@ alien_predator_model_1 %>% compile(
   metrics = c("accuracy"))
 ```
 
-Aby wytrenować model za pomocą generatora danych, musimy skorzystać ze specjalnej funkcji:
+Aby wytrenować model za pomocą generatora danych, musimy skorzystać z funkcji `fit`:
 
 ```{r fit_generator}
-history <- alien_predator_model_1 %>% fit_generator(
+history <- alien_predator_model_1 %>% fit(
   train_flow, 
   steps_per_epoch = 22, # ceiling(694 / 32)
   epochs = 15,
@@ -111,14 +111,14 @@ test_generator <- flow_images_from_directory(
 )
 
 # Evaluate on test set
-alien_predator_model_1 %>% evaluate_generator(test_generator, steps = 18)
+alien_predator_model_1 %>% evaluate(test_generator, steps = 18)
 ```
 
 i policzyć predykcje:
 
 ```{r predict_generator}
 alien_predator_model_1 %>%
-  predict_generator(
+  predict(
     test_generator,
     steps = 18)
 ```
@@ -200,7 +200,7 @@ alien_predator_model_2
 Dopasowanie modelu i ewaluacja wygląda tak samo:
 
 ```{r fine_tuning_fit}
-history <- alien_predator_model_2 %>% fit_generator(
+history <- alien_predator_model_2 %>% fit(
   train_flow, 
   steps_per_epoch = 22, # ceiling(694 / 32)
   epochs = 15,
@@ -219,7 +219,7 @@ test_generator <- flow_images_from_directory(
   class_mode = "categorical"
 )
 
-alien_predator_model_2 %>% evaluate_generator(test_generator, steps = 18)
+alien_predator_model_2 %>% evaluate(test_generator, steps = 18)
 
 save_model_hdf5(alien_predator_model_2, "models/alien_predator_model.hdf5")
 ```
@@ -279,7 +279,7 @@ sign_mnist_model %>% compile(
   metrics = "accuracy"
 )
 
-history <- sign_mnist_model %>% fit_generator(
+history <- sign_mnist_model %>% fit(
   train_flow,
   steps_per_epoch = 858,
   epochs = 15,
