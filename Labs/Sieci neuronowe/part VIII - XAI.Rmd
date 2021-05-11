@@ -1,0 +1,176 @@
+---
+title: "part VIII - XAI"
+author: "Michał Maj"
+output: html_notebook
+---
+
+```{r packages}
+library(keras)
+library(tidyverse)
+library(lime)
+library(DALEX)
+library(titanic)
+```
+
+`DALEX` czyli **moDel Agnostic Language for Exploration and eXplanation** jest to pakiet R zawierający zestaw narzędzi do **wyjaśnialnego uczenia maszynowego** (`XAI`). Zobaczmy, jak możemy użyć `DALEX` dla modeli `keras`. Zaczniemy od stworzenia prostego modelu dla zbioru danych `titanic`:
+
+```{r titanic}
+load("data/titanic.RData")
+head(titanic_small)
+```
+
+Teraz musimy stworzyć odpowiednie tensory dla modelu
+
+```{r titanic_tensors}
+titanic_small_y <- titanic_small %>% select(Survived) %>% mutate(Survived = as.numeric(as.character(Survived))) %>% as.matrix()
+titanic_small_x <- titanic_small %>% select(-Survived) %>% as.matrix()
+```
+
+I wytrenować MLP:
+
+```{r titanic_mlp}
+model_titanic <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10)) %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model_titanic %>% compile(
+  optimizer = optimizer_sgd(lr = 0.01),
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <- model_titanic %>% fit(
+  titanic_small_x,
+  titanic_small_y,
+  epochs = 100,
+  validation_split = 0.2
+)
+```
+
+Wygenerujmy prognozę dla nowej obserwacji:
+
+```{r titanic_prediction}
+henry <- data.frame(
+  Pclass = 1,
+  Age = 68,
+  Fare = 72,
+  Family_members = 3,
+  Sex_male = 1,
+  Sex_female = 0,
+  Embarked_S = 0,
+  Embarked_C = 1,
+  Embarked_Q = 0,
+  Embarked_ = 0
+)
+henry_matrix <- as.matrix(henry)
+predict(model_titanic, henry_matrix)
+```
+
+Aby skorzystać z funkcji `DALEX` musimy utworzyć **explainer**:
+
+```{r titanic_explainer}
+explainer_titanic_keras <- DALEX::explain(
+  model = model_titanic, # Model to explain
+  data = titanic_small_x, # Predictors
+  y = as.numeric(titanic_small_y), # Predicted value
+  predict_function = function(x, ...) as.numeric(predict(x, ...)), # Prediction function
+  label = "MLP_keras",
+  type = "classification")
+```
+
+Pierwszą rzeczą, jaką możemy zrobić, jest sprawdzenie dystrybucji reszt za pomocą `model_performance`:
+
+```{r model_performance}
+mp_titanic_keras <- model_performance(explainer_titanic_keras)
+plot(mp_titanic_keras)
+```
+
+Aby uzyskać istotność zmiennych w dowolnym modelu ML / DL, którego możemy użyć `model_parts`:
+
+```{r variable_importance}
+vi_titinic_keras <- model_parts(explainer_titanic_keras)
+plot(vi_titinic_keras)
+```
+
+Długość przedziału odpowiada zmiennej ważności. Dłuższy interwał oznacza większą stratę, więc zmienna jest ważniejsza.
+
+Dla lepszego porównania możemy spojrzeć na istotność zmiennej w `0` przy użyciu `type = "difference"`
+
+```{r variable_importance_diff}
+vi_titinic_keras <- model_parts(explainer_titanic_keras, type = "difference")
+plot(vi_titinic_keras)
+```
+
+Jeśli wiemy, która zmienna jest ważna w naszym modelu, możemy teraz sprawdzić odpowiedź zmiennej (relację z przewidywaną wartością) dla dowolnego predyktora. Możemy na przykład zdobyć z uzyciem PDP - **Partial Dependence Plots** lub ALE - **Acumulated Local Effects Plots**:
+
+```{r pdp_ale}
+vr_age_keras_pdp  <- model_profile(explainer_titanic_keras, variable =  "Age", type = "partial")
+plot(vr_age_keras_pdp)
+vr_age_keras_ale  <- model_profile(explainer_titanic_keras, variable =  "Age", type = "accumulated")
+plot(vr_age_keras_ale)
+```
+
+Możemy również wygenerować wyjaśnienie prognozy dla pojedynczej nowej obserwacji:
+
+```{r prediction_breakdown}
+sp_keras <- predict_parts(explainer_titanic_keras, henry_matrix)
+plot(sp_keras)
+```
+
+`DALEX` może być używany do wszelkiego rodzaju modeli ML / DL, które działają na danych tabelarycznych, ale co, jeśli chcemy wyjaśnić zaawansowane modele, takie jak CNN. Zamiast tego możemy użyć `lime`. Załadujmy nasz model Alien vs Predator:
+
+```{r load_model}
+model <- load_model_hdf5("models/alien_predator_model.hdf5")
+```
+
+Aby pokazać wpływ zmienych na predykcje, nie chcemy używać pojedynczych pikseli, zamiast tego użyjemy algorytmu k-NN do stworzenia superpikseli:
+
+```{r suerpixels}
+test_dir <- "data/alien-vs-predator/test"
+test_images <- list.files(test_dir, recursive = TRUE, pattern = ".jpg", full.names = TRUE)
+plot_superpixels(test_images[1], # Image to segment
+                 n_superpixels = 50) # Superpixels number
+```
+
+Zaczniemy od stworzenia explainera:
+
+```{r}
+klasy <- c('1' = 'alien', '2' = 'predator')
+image_prep <- function(x) {
+  arrays <- lapply(x, function(path) {
+    img <- image_load(path, target_size = c(150, 150))
+    x <- image_to_array(img)
+    x <- reticulate::array_reshape(x, c(1, dim(x)))
+    x <- x / 255
+  })
+  do.call(abind::abind, c(arrays, list(along = 1))) # Złączenie obrazów w tensor
+}
+
+explainer <- lime(c(test_images[1], test_images[11]), # New images to explain predictions for
+                  as_classifier(model, klasy), # Model
+                  image_prep) # Image preparation function
+explanation <- lime::explain(c(test_images[1], test_images[11]), # New images to explain predictions for
+                       explainer, # explainer
+                       n_labels = 1, # Nr of labels to explain (only for classification task)
+                       n_features = 20, # Nr of superpixels (features) to use for explanation
+                       n_superpixels = 50, # Nr of superpixels
+                       background = "white")
+```
+
+Teraz możemy wykreślić istotność zmiennej:
+
+```{r plot_features}
+plot_features(explanation, ncol = 2)
+```
+
+I pokazać to na rzeczywistych obrazach:
+
+```{r plot_image_explanation}
+plot_image_explanation(as.data.frame(explanation)[1:20, ],
+                       display = 'outline', threshold = 0.001,
+                       show_negative = TRUE)
+plot_image_explanation(as.data.frame(explanation)[21:40, ],
+                       display = 'outline', threshold = 0.0001,
+                       show_negative = TRUE)
+```
