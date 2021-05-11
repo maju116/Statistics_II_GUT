@@ -1,0 +1,258 @@
+---
+title: "10. XAI"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(DALEX)
+library(randomForest)
+```
+
+# XAI
+
+## Wyjaśnialna sztuczna inteligencja
+
+**Wyjaśnialna sztuczna inteligencja** (XAI) to subdziedzina Machine Learningu zajmująca się wyjasnianiem modeli statystycznych (zazwyczaj skomplikowanych "black boxów") jak równiez ich predykcji. W dzisiejszych czasach objaśnienie decyzji modeli ML nie wynika tylko z chęci zrozumienia wspomnianego modelu, a w niektórych przypadkach z wymogów prawnych. Przykładowo w bankowości i finansach klient ma tak zwane ["prawo do wyjaśnienia"](https://en.wikipedia.org/wiki/Right_to_explanation) - na przykład w przypadku odmowy kredytu klient może wnioskowac o uzasadnienie... powiedzenie wtedy, że "tak zdecydowała siec neuronowa" nie będzie akceptowalne. Innym przykładem może być medycyna - lekarze nie znający się na ML musza zrozumieć dlaczego podana została taka a nie inna diagnoza.
+
+Metody XAI możemy podzialić na kilka różnych typów w zalezności od ich działania:
+
+1. Czy metodę mozna zastosować dla dowolnego modelu?
+- Tak: Model Agnostic
+- Nie: Model Specific
+
+2. Czy metoda tłumaczy cały model czy tylko jego część/próbkę?
+- Tak: Global
+- Nie: Local
+
+3. Przez co nastepuje tłumaczenie modelu?
+- Uproszczenie modelu: Suggogate model
+- Istotność zmiennych: Variable importance
+- Wizualizacja: Vizualization
+
+## DALEX
+
+`DALEX` czyli **moDel Agnostic Language for Exploration and eXplanation** jest to pakiet R zawierający zestaw narzędzi agnostycznego wyjaśniania modeli i ich predykcji.
+
+Zacznijmy od inspecki zbioru `apartments`:
+
+```{r}
+head(apartments)
+```
+
+Został o utworzony w ten sposób, że znamy prawdziwą funkcję regresji dla zmiennej objasnianej `m2.price`:
+
+$$
+m2.price = \\
+5000+600∗(|construction.year−1965|>30)−10∗surface−100∗floor−50∗no.rooms+1.5∗district
+$$
+
+Zdudujmy teraz dwa modele statystyczne dla powyższego zjawiska:
+
+```{r}
+regr_lm <- lm(m2.price ~ ., data = apartments)
+regr_rf <- randomForest(m2.price ~ ., data = apartments)
+```
+
+Aby móc korzystać z metod wyjaśnialności pakietu `DALEX` musimy najpierw stwprzyć obiekt klasy `explainer`:
+
+```{r}
+explainer_lm <- explain(regr_lm, # Model do wytlumaczenia
+                        data = apartmentsTest[ , 2:6], # Predyktory
+                        y = apartmentsTest$m2.price, # Zmienna objaśniana
+                        label = "lm") # Label do wykresów
+explainer_rf <- explain(regr_rf,
+                        data = apartmentsTest[ , 2:6],
+                        y = apartmentsTest$m2.price,
+                        label = "rf")
+```
+
+Stworzymy także funkcje pomocnicza odpowiadająca za predykcje (model "prawdziwy"):
+
+```{r}
+true_relation <- function(x1, x2, x3, x4, x5){
+  levels(x5) <- c(-400, -400, 200, 200, -400, 1000, -400, -400, -400, 200)
+  x5 <- as.numeric(as.character(x5))
+  5000 +  600 * (abs(x1 - 1965) > 30) - 10 * x2 - 100 * x3 -50 * x4 + 1.5 * x5
+}
+explainer_tr <- explain(
+  regr_lm, # Bez różnicy co tu podamy, bo nie jest wykorzystywane w predict_function
+  data = apartmentsTest[ , 2:6],
+  y = apartmentsTest$m2.price,
+  predict_function = function(m, x) true_relation(x[,1], x[,2], x[,3], x[,4], x[,5]),
+  label = "True Model")
+```
+
+Pierwszą rzeczą jaka mozemy sprawdzić jest rozkład reszt:
+
+```{r}
+mp_lm <- model_performance(explainer_lm) # Zwykła dystrybuanta empiryczna reszt
+mp_rf <- model_performance(explainer_rf)
+mp_tr <- model_performance(explainer_tr)
+
+plot(mp_lm, mp_rf, mp_tr)
+```
+
+Kolejną rzeczą, którą możemy sprawdzić jest istotność poszczególnych zmiennych:
+
+```{r}
+set.seed(1234)
+vi_lm <- model_parts(explainer_lm, # Explainer
+                     loss_function = loss_sum_of_squares, # Funkcja straty
+                     type = "ratio", # Typ transforacji dla funkcji straty z dropoutu
+                     n_sample = 9000) # Samplowanie próbek ze zbioru
+vi_rf <- model_parts(explainer_rf,
+                     loss_function = loss_sum_of_squares,
+                     type = "ratio",
+                     n_sample = 9000)
+vi_tr <- model_parts(explainer_tr,
+                     loss_function = loss_sum_of_squares,
+                     type = "ratio",
+                     n_sample = 9000)
+plot(vi_lm, vi_rf)
+```
+
+W tym miejscu wyjaśnijmy co się stało. Idea powyższego algorytmu jest bardzo prosta. Powyższe wykresy odpowiadają na pytanie "ile razy wzrośnie funkcja straty jeśli dany predyktor zostałby zrandomizowany"? Jeśli wartość wzrostu funkcji straty po randomizacji jest duża to zmienna jest istotna. Takie podejście daje nam mozliwość testowania istotności zmiennych dla dowolnej klasy modeli ML - agnostycznie.
+
+W kroku pierwszym musimy wybrać funkcję straty oraz policzyc predykcje na zbiorze treningowym przy zmiennych niezmienionych:
+
+```{r}
+x <- apartmentsTest[ , 2:6]
+y <- apartmentsTest$m2.price
+loss_0 <- loss_sum_of_squares(y, predict(regr_lm, x)) # Oznaczonae jako _full_model_
+```
+
+Nastepnie sprawdzamy jak wyglądałaby nasza funkcja straty po randomizacji wszystkich zmiennych:
+
+```{r}
+set.seed(1234)
+loss_full <- loss_sum_of_squares(sample(y), predict(regr_lm, x)) # Oznaczonae jako _baseline_ (Randomizacja wszystkich zmiennych)
+```
+
+Nastepnie sprawdzamy wartości funkcji straty randomizując jedną zmienną na raz:
+
+```{r}
+variables <- colnames(x)
+res <- sapply(variables, function(variable) {
+  ndf <- x
+  ndf[, variable] <- sample(ndf[, variable]) # Randomizacja danej zmiennej
+  predicted <- predict(regr_lm, ndf) # Predykcje po randomizacji
+  loss_sum_of_squares(y, predicted) # Wartosc funkcji straty po randomizacji
+})
+res/loss_0 # Ile razy wzrosła funkcja straty po randomizacji zmiennej. Wartości bliskie 1 oznaczają zmienną nieistotną, im wyższe tym bardziej istotne
+```
+
+Jesli znamy już istotności poszczególnych zmiennych może nas interesować jaki wpływ (liniowy bądź nie) mają one na nasze predykcje. Istnieje kilka różnych algorytmów badających wspomnianą zależność. Zaczniemy od **Partial Dependence Plots - PDP**  zdefiniowanej jako oczekiwana wartość prognoz/predykcji gdy zmienna $X_j$ przyjmuje wartość $z$ nad rozkładem marginalnym pozostałych predyktorów $X_{-j}$. 
+
+$$
+P D P^{j}(z)=E_{\underline{X}^{-j}}\left\{f\left(X^{j \mid=z}\right)\right\}
+$$
+Oczywiście rozkład zmiennych $X_j$ jest zazwyczaj nieznany, dlatego PDP estymujemy korzystając ze wzoru:
+
+$$
+\hat{P D P}^{j}(z)= \frac{1}{n} \sum_{i=1}^n f(\underline{x}_i^{j \mid=z})
+$$
+```{r}
+sv_lm  <- model_profile(explainer_lm, # Explainer
+                        variable =  "construction.year", # Zmienna, którą wyjaśniamy
+                        type = "partial") # Typ : Partial Dependence Plot
+sv_rf  <- model_profile(explainer_rf,
+                        variable =  "construction.year",
+                        type = "partial")
+sv_tr <- model_profile(explainer_tr,
+                       variable =  "construction.year",
+                       type = "partial")
+plot(sv_lm, sv_rf, sv_tr)
+```
+
+W rzeczywistości to dla pewnej ustalonej wartości $z$ zmiennej `construction.year` liczę uśrednioną predykcje na zbiorze treningowym zakładajac, że $construction.year = z$ dla wszystkihc obserwacji w zbiorze. Czynność tę powtarzam dla każdej możliwej wartości zmiennej `construction.year`
+
+```{r}
+unique_years <- seq(from = min(apartmentsTest$construction.year), to = max(apartmentsTest$construction.year), by = 1.8)
+x <- unique_years %>% purrr::map_df(~ {
+  apartmentsTest[ , 2:6] %>%
+    mutate(construction.year = .x) %>% # Podmieniam wartość danej zmiennej w całym zbiorze
+    bind_cols(., prediction = predict(regr_rf, .)) %>%
+    group_by(construction.year) %>%
+    summarise(mean_pred = mean(prediction))
+})
+ggplot(x, aes(construction.year, mean_pred)) + geom_line() + theme_bw()
+```
+
+Wadą PDP jest to, że w przypadku skorelowanych predyktorów wykresy te moga znacznie odbiegać od prawdy. Bardziej skomplikowaną alternatywą rozwiazujacą ten problem jest **Accumulated Local Effects - ALE**, w których to liczymy nasza wartość oczekiwaną dla rozkładu warunkowego, a nie marginalnego, a takze lokalnie a nie globalnie:
+
+$$
+ALE^{j}(z)=\int_{z_{0}}^{z}\left[E_{\underline{X}^{-j} \mid X^{j}=v}\left\{q^{j}\left(\underline{X}^{j \mid=v}\right)\right\}\right] d v+c \\
+q^{j}(\underline{u})=\left\{\frac{\partial f(\underline{x})}{\partial x^{j}}\right\}_{\underline{x}=\underline{u}}
+$$
+ALE estymowane jest wzorem:
+
+$$
+\hat{ALE}^{j}(z)==\sum_{k=1}^{k_{j}(z)} \frac{1}{n_{j}(k)} \sum_{i: x_{i}^{j} \in N_{j}(k)}\left\{f\left(\underline{x}_{i}^{j \mid=z_{k}^{j}}\right)-f\left(\underline{x}_{i}^{j \mid=z_{k-1}^{j}}\right)\right\}-\hat{c}
+$$
+gdzie $\hat{c}$ wybrane jest w ten sposób, że
+
+$$
+\sum_{i=1}^{n} \hat{ALE}^{f, j}\left(x_{i}^{j}\right)=0
+$$
+
+```{r}
+sv2_lm  <- model_profile(explainer_lm, # Explainer
+                         variable =  "construction.year", # Zmienna, którą wyjaśniamy
+                         type = "accumulated") # Typ : Accumulated Local Effects
+sv2_rf  <- model_profile(explainer_rf,
+                         variable =  "construction.year",
+                         type = "accumulated")
+sv2_tr <- model_profile(explainer_tr,
+                        variable =  "construction.year",
+                        type = "accumulated")
+plot(sv2_lm, sv2_rf, sv2_tr)
+```
+
+Mozna to policzyć recznie w następujący sposób
+
+```{r}
+X <- apartmentsTest[ , 2:6]
+J <- "construction.year"
+K <- 40
+z <- c(min(X[, J]), as.numeric(quantile(X[, J], seq(1/K, 1, length.out = K), type = 1))) # Kwantyle zmiennej construction.year
+a1 = as.numeric(cut(X[, J], breaks = z, include.lowest = TRUE)) # Podział na interwały
+X1 = X
+X2 = X
+X1[, J] = z[a1] # Interwał po lewej
+X2[, J] = z[a1 + 1] # Interwał po prawej
+y.hat1 = predict(regr_rf, newdata = X1) # Predykcja dla lewego interwału
+y.hat2 = predict(regr_rf, newdata = X2) # Predykcja dla prawego interwału
+Delta = y.hat2 - y.hat1 # Aproksymacja gradientów
+Delta = as.numeric(tapply(Delta, a1, mean)) # Wartość oczekiwana gradientów
+fJ = c(0, cumsum(Delta))
+b1 <- as.numeric(table(a1))
+fJ = fJ - sum((fJ[1:K] + fJ[2:(K + 1)])/2 * b1)/sum(b1) # Sumowanie Efektów
+x <- z
+df <- data.frame(construction.year = x, mean_pred = fJ)
+ggplot(df, aes(construction.year, mean_pred)) + geom_line() + theme_bw()
+```
+
+Jesli znamy już istotność i kształt zalezności zmiennych możemy przejść do tłumaczenia pojedynczej predykcji.
+
+```{r}
+obserwacja <- apartmentsTest[2 , 2:6]
+pb_lm <- predict_parts(explainer_lm, obserwacja)
+pb_rf <- predict_parts(explainer_rf, obserwacja)
+pb_tr <- predict_parts(explainer_tr, obserwacja)
+
+plot(pb_lm)
+plot(pb_rf)
+plot(pb_tr)
+```
+
