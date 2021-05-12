@@ -1,0 +1,467 @@
+---
+title: "11. GAM"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path="imgs/")
+library(tidyverse)
+library(splines)
+```
+
+# Uogólnione modele addytywne - GAM
+
+## Regresja wielomianowa
+
+Regresja liniowa oraz jej rozszerzenie, Uogólnione modele liniowe (GLM), zakładają że istnieje liniowa zależność między warunkową wartościa oczekiwaną (lub jej transformacja), a predyktorami:
+
+$$
+\left\{\begin{array}{l}
+y|X \sim O E F(\mu(\theta), \phi) \\
+g(\mu)=\eta=X \beta
+\end{array}\right.
+$$
+
+
+Bardzo często okazuje się jednak, że założenie o liniowości jest niewystarczające. Do tej pory poznalismy już kilka metod rozwiązania tego problemu, a mianowicie zastosowanie nieliniowego modelu takiego jak Random forest, Boosting, Sieci Neuronowe itp. itd. Dzisiaj zastanowimy się w jaki sposób rozszerzyć modele klasy GLM do **nieliniowych zależności**.
+
+Rozważmy na początek prosty przykład - powiedzmy, ze chcemy zamodelowac zalezność pomiędzy mocą silnika $P$, a prędkoscią maksymalną pojazdu $V$ stosując regresję liniową:
+
+$$
+P|V \sim N(\mu, \sigma^2)\\
+\mu = \beta_0 + \beta_1 V
+$$
+
+```{r, message=FALSE}
+power <- read_csv("power.csv")
+ggplot(power, aes(V, P)) + geom_point() + geom_smooth(method = "lm", se = TRUE)
+```
+
+Dopasowanie nie jest idealne. Zaglądając do podręcznika z fizyki możemy zauważyć, że wzór relacji miedzy mocą, a predkościa wygląda następująco:
+
+$$
+P = 0.5P_pC_x\rho V^3
+$$
+
+Pomijając fakt, że w równaniu występują także inne zmienne (pole powierzchni czołowej pojazdu, g̨estość powietrza i bezwymiarowy współczynnik siły oporu) to warto zauważyć, że we wzorze prędkość pojawia się w potędze trzeciej. Mając to na uwadze możemy zaktualizować nasz model:
+
+$$
+P|V \sim N(\mu, \sigma^2)\\
+\mu = \beta_0 + \beta_1 V^3
+$$
+```{r}
+ggplot(power, aes(V, P)) + geom_point() + geom_smooth(method = "glm", formula = y ~ I(x^3), se = TRUE)
+```
+
+Jak widać dopasowanie modelu jest teraz znacznie lepsze. Interpretacja modelu nie zmienia sie, poza faktem, że zalezność liniowa jest między mocą, a trzecią potęgą prędkości - podejście to nosi nazwę **regresji wielomianowej**, a jej ogólną postać mozna zapisać jako:
+
+$$
+y|X \sim N(\mu, \sigma^2)\\
+\mu = \beta_0 +  \beta_1X + \beta_2X^2 + ... \beta_nX^n
+$$
+
+Zastąpienie liniowego predyktora nieliniowym sprawia, ze jesteśmy w stanie stworzyć model lepiej dopasowany do naszych danych, jednakze nieliniowość sprawia, że trudniej jest zinterpretować nasz model. Moze takze pojawić się drugi problem - overfitting - w przypadku gdy nieliniowy predyktor jest zbyt elastyczny. dzieje się tak na przykład w przypadku regresji wielomianowej zbyt wysokiego stopnia. Zilustrujmy to na podstawie regresji stopnia 3 i 13:
+
+```{r}
+data <- tibble(
+  x = runif(20, 0, 10),
+  y = 0.1*x^2 + rnorm(20, 0, 8)
+)
+ggplot(data, aes(x, y)) + geom_point() + geom_smooth(method = "glm", formula = y ~ poly(x, degree = 3), se = TRUE, color = "darkred")
+ggplot(data, aes(x, y)) + geom_point() + geom_smooth(method = "glm", formula = y ~ poly(x, degree = 13), se = TRUE)
+```
+
+Regresja wielomianowa ma jeszcze jeden istotny problem. Jak widać na rysunku predykcje modelu są szczególnie niestabilbe na końcach przedziału - jest to tak zwany [Runge's phenomenon](https://en.wikipedia.org/wiki/Runge%27s_phenomenon)
+
+## Model addytywny - AM
+
+Model regresji wielomianowej jest szczególnym przypadkiem **modelu addytywnego**, którego ogólna postac wygląda następująco:
+
+$$
+y|X \sim N(\mu, \sigma^2)\\
+\mu = \beta_0 + f_1(X_1) + ... + f_p(X_p)
+$$
+
+Model ten można traktować jako rozszerzenie klasycznego modelu regresji liniowej o nieliniowy predyktor. W modelach addytywnych najważniejszym wyzwaniem jest oczywiście odpowiedni dobór funkcji $f(.)$. Można tu wymienić 2 główne podejścia do tego problemu:
+
+- wybór **funkcji bazowych** (basis functions)
+- wybór **funkcji wygładzanych** (smoothers)
+
+
+**Funkcja bazowa** jest elementem bazy pewnej **przestrzeni funkcyjnej**. oznacza to, ze każda funkcja z danej przestrzeni może być zapisana jako liniowa kombinacja funkcji bazowaych. Weźmy na przykład przestrzeń wielomianów stopnia $n$. Każdy wielomian stopnia $n$ da się zapisać jako kombinacja liniowa funkcji z bazy:
+
+$$
+\{1, x, x^2, ..., x^n\}
+$$
+
+Wybierając bazę wielomianową do utworzenia funkcji $f(.)$ otrzymujemy:
+
+$$
+f(x) = \sum_{i=1}^n \beta_i x^i
+$$
+
+co daje nam model regresji wielomianowej.
+
+Stosowanie funkcji bazowych jest o tyle dobrym rozwiązaniem, że do estymacji możemy użyć metody najmniejszych kwadratów lub metody największej wiarygodności. wynika to z tego, że model addytywny z funkcjami bazowymi możemy przedstawić jako model z liniowym predyktorem:
+
+$$
+z_1 = x, z_2 = x^2, ..., z_n = x^n \\
+\eta = \beta_0 + \beta_1z_1 + ... + \beta_nz_n
+$$
+
+Innymi często stosowanymi bazami są:
+
+- radialne funkcje bazowe (radial basis functions)
+- falki (wavelets)
+- funkcje bazowe Fourier'a (Fourier's basis functions)
+- bazy splajnowe (spline basis)
+
+
+## Splajny
+
+Jak zauważyliśmy przed chwilą stosowanie wielomianów zbyt wysokiego rzędu może sprawić, że krzywa regresji stanie się zbyt elastyczna, a jej wartości będą zmieniać się w zastraszającym tempie. Istnieje proste rozwiązanie tego problemu - zamiast **globalnego** dopasowanie wielomianem wysokiego rzędu możemy spróbować **lokalnie** dopasować kilka wielomianów niższego rzedu. 
+
+Oznaczmy zakres zmiennej $x$ przez $[a, b]$ i wybierzmy z niego $k$ punktów zwanych **węzłami**:
+
+$$
+a< \zeta_1 < \zeta_2 < ... < \zeta_k < b
+$$
+
+Na podstawie powstałych w ten sposób przedziałach dopasowywać bedziemy kolejne krzywe. Podejście to nosi nazwę **regresji kawałkami wielomianowej**. W najprostrzym przypadku mozemy uzyć wielomianów stopnia $0$ czyli po prostu indykatorów zbioru. W literaturze ten przypadek nazywany jest często **regresją funkcjami schodkowymi**:
+
+$$
+z_1 = 1(x < \zeta_1), z_2 = 1(\zeta_1 \leq x < \zeta_2), ..., z_{k+1} = 1(\zeta_k \leq x)
+$$
+```{r}
+wezly <- 6
+wezel <- 10 / (wezly + 1) * (1:wezly)
+prawda <- data.frame(a=seq(0, 10, by = 0.01), b = seq(0,10,by=0.01) * sin(seq(0, 10, by = 0.01)))
+set.seed(33)
+x <- runif(40, 0, 10)
+gr <- c()
+for(i in 1:40){
+  gr<-c(gr, sum(x[i] > wezel))
+}
+dane <- data.frame(x = x, y = x * sin(x) + rnorm(40,0,1), gr = gr)
+
+c(0, 1, 2) %>% walk(~ {
+  if(.x == 0) {
+    formu <- as.formula("y~1")
+  }
+  else {
+    formu <- as.formula(paste0("y~poly(x, ", .x, ")"))
+  }
+  
+  plot(ggplot(dane, aes(x = x,y = y,group = gr)) + geom_point(cex = 4) +
+         geom_line(data = prawda, aes(group = 1, x = a,y = b), lwd = 2) +
+         theme_light() + stat_smooth(method = "lm", formula = formu, col = "red", se = TRUE, lwd = 2) + geom_vline(xintercept = wezel, lty = 2,lwd = 2))
+})
+```
+
+W przypadku ogólnym regresji kawałkami wielomianowej stopnia $n$ z $k$ węzłami zmienna $x$ zostaje zastąpiona przez $(n+1)(k+1) $ nowych zmiennych co daje olbrzymią liczbę parametrów do estymacji, co znowu może prowadzić do overfittingu. Nie jest to jedyny problem regresji kawałkami wielomianowej.
+
+Na powyższym rysunku widać, ze funkcja regresji nie jest ciągła w węzłach co jest kolejną niedogodnością. Interpretacja regresji kawałkami wielomianowej jest identyczna jak poprzednio - wyestymowana krzywa interpretowana jest jako zmiana wartości oczekiwanej. Oznaczałoby to że zmiana w węzłach jest skokowa co jest dość trudne do uzasadnienia. 
+
+W prawdzie same węzły mogą być interpretowane jako miejsca, w których zmienił się charakter modelowanego zjawiska, jednak myśląc o tych zmianach zazwyczaj przychodzi nam do głowy zmiana kierunku, a nie punktowy skok.
+
+## Splajny
+
+Rozwiązaniem problemu nieciagłości jest uzycie **splajnów**. Splajnem stopnia $r$ nazwiemy funkcję kawałkami wielomianową stopnia $r$, która posiada ciągłe pochodne do rzedu $r-1$ włącznie. **Bazę splajnową** możemy otrzymac poprzez dodanie do bazy wielomianowej **odciętych funkcji wielomianowych** (truncated polynomial functions) dla każdego węzła:
+
+$$
+h(x, \xi)=(x-\xi)_{+}^{r}=\left\{\begin{array}{l}
+(x-\xi)^{r} \operatorname{gdy} x>\xi \\
+0 \text { w przeciwnym przypadku }
+\end{array}\right.
+$$
+
+```{r}
+wezly <- 6
+wezel <- 10 / (wezly + 1) * (1:wezly)
+prawda <- data.frame(a=seq(0, 10, by = 0.01), b = seq(0,10,by=0.01) * sin(seq(0, 10, by = 0.01)))
+set.seed(33)
+x <- runif(40, 0, 10)
+gr <- c()
+for(i in 1:40){
+  gr<-c(gr, sum(x[i] > wezel))
+}
+dane <- data.frame(x = x, y = x * sin(x) + rnorm(40,0,1), gr = gr)
+
+c(0, 1, 2, 3, 4) %>% walk(~ {
+  if(.x == 0) {
+    formu <- as.formula("y~1")
+  }
+  else {
+    formu <- as.formula(paste0("y~bs(x, degree = ", .x, ", knots = wezel)"))
+  }
+  
+  plot(ggplot(dane, aes(x = x,y = y)) + geom_point(cex = 4) +
+         geom_line(data = prawda, aes(group = 1, x = a,y = b), lwd = 2) +
+         theme_light() + stat_smooth(method = "lm", formula = formu, col = "green", se = TRUE, lwd = 2) + geom_vline(xintercept = wezel, lty = 2,lwd = 2))
+})
+```
+
+Najpopularniejszą bazą splajnów jest baza **splajnów kubicznych** (cubic splines):
+
+$$
+z_{1}=x, z_{2}=x^{2}, z_{3}=x^{3}, z_{4}=\left(x-\xi_{1}\right)_{+}^{3}, \ldots, z_{3+k}=\left(x-\xi_{k}\right)_{+}^{3}
+$$
+
+Splajny kubiczne ciesza się popularnością z kilku powodów. W przypadku regresji kawałkami wielomianowej stopnia $3$ mieliśmy $3(k+1)$ parametrów do estymacji w przypadku regresji splajnami kubicznymi jest ich tylko $k+4$. Po drugie regresja splajnami stopnia $3$ jest wystarczająco elastyczna, w przeciwieństwie do jej wielomianowego odpowiednika. Po trzecie splajny kubiczne posiadają ciagłą pochodną drugiego rzędu, a co za tym idzie funkcja regresji jest nie tylko ciągła, ale także gładka (w sensie krzywizny), co bardzo często jest porządaną cechą. 
+
+Niestety splajny jak i wielominany posiadają bardzo dużą wariancję na brzegach przedziału predykcji. Aby rozwiązać ten problem na splajny nakłada się 2 dodatkowe ograniczenia, które nakazują splajnom **zachowywać się liniowo na brzegach**, przez co funkcja jest tam bardziej stabilna. Powstałe w ten sposób funkcje są nazywane **splajnami naturalnymi**. W przypadku naturalnych splajnów kubicznych ograniczenia te mają postać:
+
+$$
+\beta_{2}=\beta_{3}=0, \sum_{i=4}^{k+4} \beta_{i}=0, \sum_{i=4}^{k+4} \xi_{i} \beta_{i}=0
+$$
+
+Wyegzekwowanie takiego zachowania wymaga użycia innej bazy splajnowej - **bazy splajnów zaturalnych**:
+
+$$
+\left\{N_{1}(x)=1, N_{2}(x)=x, N_{i+2}=d_{i}(x)-d_{k+1}(x)\right\}
+$$
+
+gdzie $i = 1,2,...,k-2$, $k$ jest liczbą węzłów, a:
+
+$$
+d_{i}(x)=\frac{\left(x-\xi_{i}\right)_{+}^{3}-\left(x-\xi_{k}\right)_{+}^{3}}{\xi_{k}-\xi_{i}}
+$$
+
+```{r}
+wezly <- 6
+wezel <- 10 / (wezly + 1) * (1:wezly)
+prawda <- data.frame(a=seq(0, 10, by = 0.01), b = seq(0,10,by=0.01) * sin(seq(0, 10, by = 0.01)))
+set.seed(33)
+x <- runif(40, 0, 10)
+gr <- c()
+for(i in 1:40){
+  gr<-c(gr, sum(x[i] > wezel))
+}
+dane <- data.frame(x = x, y = x * sin(x) + rnorm(40,0,1), gr = gr)
+formu_cs <- as.formula("y~bs(x, degree = 3, knots = wezel)")
+formu_ncs <- as.formula("y~ns(x,Boundary.knots=wezel[c(1,length(wezel))],knots=wezel[-c(1,length(wezel))])")
+
+plot(ggplot(dane, aes(x = x,y = y)) + geom_point(cex = 4) +
+       geom_line(data = prawda, aes(group = 1, x = a,y = b), lwd = 2) +
+       theme_light() +
+       stat_smooth(method = "lm", formula = formu_cs, col = "green", se = TRUE, lwd = 2) +
+       stat_smooth(method = "lm", formula = formu_ncs, col = "red", se = TRUE, lwd = 2) +
+       geom_vline(xintercept = wezel, lty = 2,lwd = 2) +
+       geom_rect(aes(xmin = -Inf, xmax = wezel[1], ymin = -Inf, ymax = Inf), alpha = 0.008, fill = "yellow") +
+       geom_rect(aes(xmin = wezel[length(wezel)], xmax = Inf, ymin = -Inf, ymax = Inf), alpha = 0.008, fill = "yellow"))
+```
+
+## Splajny wygładzone
+
+Wykorzystując regresję wielomianową, splajnową lub jakikolwiek inny model addytywny mamy na celu jedną rzecz. Chcemy znaleźć **funkcję gładką**, która w rzetelny sposób będzie odwzorowywać zmianę warunkowej wartości oczekiwanejmodelowanej zmiennej. W poprzednich podrozdziałach pokazałem jak mozna zrobić to stosując funkcje bazowe. Przy wykorzystaniu funkcji bazwych mozliwa była próba interpretacji modelu - poprzez interpretację nowych zmiennych. Prawda jest jednak taka, że w wiekszości przypadków relacja między zmienną objaśniana, a predyktorami jest złozona i niemożliwa do odgadnięcia. 
+
+Weźmy na przykład interpretację punktów węzłowych. Jak wspomniałem możemy je interpretować jako miejsca, w których krzywa regresji zmienia się (strukturalnie). Jednakże czy w rzeczywistości jesteśmy w stanie odnaleźć te punkty (uzaadnić ich wybór)? Częstą metodą wyboru węzłów jest ustawienie ich w sposób równomierny (np. jako kwantyle) lub ustawienie większej ilości węzłów tam gdzie mamy do czynienia z większym skupiskiem danych.
+
+Zapomnimy teraz o interpretowalności naszego modelu (zmiennych) i skupimy się wyłacznie na znalezieniu funkcji gładkiej $g(.)$, która bedzie dobrze dopasowana do naszych danych - czyli minimalizować wyrażenia:
+
+$$
+R S S=\sum_{i=1}^{n}\left(y_{i}-g\left(x_{i}\right)\right)^{2}
+$$
+Jest to oczywiście błąd kwadratowy, z tą róœnicą, że $g(.)$ jest teraz dowolną funkcja, a nie funkcją liniową predyktorów. Dowolność w strukturze funkcji $g(.)$ skutkować będzie idealnym dopasowaniem do zbioru treningowego - overfittingiem. Aby rozwiązać ten problem musimy dodać penalizację do naszego modelu, tak aby $g(.)$ nie była zbyt elastyczna, ale pozostała gładka:
+
+$$
+P R S S=\sum_{i=1}^{n}\left(y_{i}-g\left(x_{i}\right)\right)^{2}+\lambda \int_{a}^{b} g^{\prime \prime}(t)^{2} d t
+$$
+
+Interpretacja wzoru jest następująca. Suma po lewej to jak poprzednio błąd kwadratowy mierzący dopasowanie. Całka po prawej mierzy krzywiznę funkcji i nazywana jest **karą za niegładkość**. Wartość $\lambda$ to **współczynnik kary**. Funkcja, która minimalizuje powyższe wyażenie nazywana jest **splajnem wygładzonym** (smoothing spline).
+
+Jak sama nazwa mówi splajn wygładzony jest splajnem, a dokładniem naturalnym splajnem kubicznym, co za chwilę wykażemy. 
+
+Zacznimy od zestawu punktów $(x_i, y_i)$, gdzie $n>1$ i $a<x_1<...<x_n<b$. oznaczmy przez 
+
+$$
+\tilde{g}(x)
+$$
+dowolną podwójnie różniczkowalną funkcję, a jej predykcje dla wartości $y_i$ poprzez:
+
+$$
+\tilde{g}\left(x_{i}\right)
+$$
+
+Rozpatrzmy naturalny splajn kubiczny, którego węzłami będą wszystkie punkty $x_i$. Ponieważ kazdy punkt stanowi węzeł to zawsze jesteśmy w stanie dobrać takie wartości $\beta_i$, że funkcja:
+
+$$
+g(x)=\sum_{i=1}^{n} \beta_{i} N_{i}(x)
+$$
+
+może interpolować wartości:
+
+$$
+g\left(x_{i}\right)=\tilde{g}\left(x_{i}\right)
+$$
+
+$N_{i}(x)$ są bazą naturalych splajnów kubicznych. Jak łatwo zauważych, pierwsza część wyrażenia jest identyczna dla obu funkcji:
+
+$$
+\sum_{i=1}^{n}\left(y_{i}-g\left(x_{i}\right)\right)^{2}=\sum_{i=1}^{n}\left(y_{i}-\tilde{g}\left(x_{i}\right)\right)^{2}
+$$
+
+Co oznacza, że minimalizacja całego wyrażenia zalezy tylko i wyłącznie od krzywizny funkcji. Oznaczmy:
+
+$$
+h(x)=g(x)-\tilde{g}(x)
+$$
+
+i rozpatrzmy całkę:
+
+$$
+\begin{array}{c}
+\left.\int_{a}^{b} g^{\prime \prime}(t) h^{\prime \prime}(t) d t \stackrel{*}{=} g^{\prime \prime}(t) h^{\prime \prime}(t)\right|_{a} ^{b}-\int_{a}^{b} g^{\prime \prime \prime}(t) h(t) d t \stackrel{* *}{=} \\
+\stackrel{* *}{=}-\sum_{j=1}^{n-1} g^{\prime \prime \prime}\left(x_{j}^{+}\right) \int_{x_{j}}^{x_{j+1}} h^{\prime}(t) d t=-\sum_{j=1}^{n-1} g^{\prime \prime \prime}\left(x_{j}^{+}\right)\left(h\left(x_{j+1}\right)-h\left(x_{j}\right)\right)=0
+\end{array}
+$$
+
+gdzie w (\*) skorzystaliśmy z całkowania przez części, a w (\*\*) z tego, że $g''(a)=g''(b)=0$. Z powyższego łatwo pokazać, że:
+
+$$
+\int_{a}^{b} \tilde{g}^{\prime \prime 2}=\int_{a}^{b}\left(g^{\prime \prime}+h^{\prime \prime}\right)^{2}=\int_{a}^{b} g^{\prime \prime 2}+2 \int_{a}^{b} g^{\prime \prime} h^{\prime \prime}+\int_{a}^{b} h^{\prime \prime 2}=\int_{a}^{b} g^{\prime \prime 2}+\int_{a}^{b} h^{\prime 2} \geqslant \int_{a}^{b} g^{\prime \prime 2}
+$$
+
+Wynika stad, że funkcją minimalizującą jest naturalny splan kubiczny z węzłami w każdym punkcie $x_i$, a raczej jego **zwężona wersja**, w której parametr $\lambda$ kontroluje stopień zwężenia. Ponieważ wiemy, ze szukaną przez nas funkcją jest naturalny splajn kubiczny to nasze kryterium możemy zapisać jako:
+
+$$
+P R S S=(y-N \hat{\beta})^{T}(y-N \hat{\beta})+\lambda \hat{\beta}^{T} \Omega_{N} \hat{\beta}
+$$
+
+gdzie:
+
+$$
+\left\{\Omega_{N}\right\}_{i j}=\int N_{j}^{\prime \prime}(t) N_{k}^{\prime \prime}(t) d t
+$$
+
+Rozwiązaniem powyzszego kryterium jest:
+
+$$
+\hat{\beta}=\left(N^{T} N+\Omega_{N}\right)^{-1} N^{T} y
+$$
+
+Mając wzór na $\hat{\beta}$ możemy zapisać wzór na wartości dopasowane:
+
+$$
+\hat{y}=N \hat{\beta}=N\left(N^{T} N+\Omega_{N}\right)^{-1} N^{T} y=S_{\lambda} y
+$$
+
+Przypomina to bardzo wynik dla regresji liniowej $\hat{y}=P_Xy$, gdzie $P_X$ było rzutem (operatorem liniowym). W przypadku splajnów wygładzonych otrzymujemy analogiczny operator liniowy nazywany **macierzą wygładzania**. Wielkość penalizacji w przypadku splajnów wygładzonych określa się przez **efektywne stopnie swobody**:
+
+$$
+d f_{\lambda}=\operatorname{trace}\left(S_{\lambda}\right)
+$$
+
+```{r}
+wezly <- 6
+wezel <- 10 / (wezly + 1) * (1:wezly)
+prawda <- data.frame(a=seq(0, 10, by = 0.01), b = seq(0,10,by=0.01) * sin(seq(0, 10, by = 0.01)))
+set.seed(33)
+x <- runif(40, 0, 10)
+gr <- c()
+for(i in 1:40){
+  gr<-c(gr, sum(x[i] > wezel))
+}
+dane <- data.frame(x = x, y = x * sin(x) + rnorm(40,0,1), gr = gr)
+
+c(1.5, 3, 10, 30) %>% walk(~ {
+  dane1 <- data.frame(x = x,y = predict(smooth.spline(x, y = dane$y, df = .x),x)$y)
+
+plot(ggplot(dane, aes(x = x,y = y)) + geom_point(cex = 4) +
+       geom_line(data = prawda, aes(group = 1, x = a,y = b), lwd = 2) +
+       theme_light() +
+       geom_line(data = dane1, aes(x = x, y = y, group = 1), col = "purple" ,lwd = 2))
+})
+```
+
+
+## LOESS/LOWESS
+
+Kolejną nieparametryczna alternatywą dla splanów wygładzonych jest **regresja lokalna LOESS/LOWESS** (locally weighted scatterplot smoothing). Metoda ta jest pewnego rodzaju połączeniem **ważonej metody najmniejszych kwadratów** oraz **K-najbliższych sąsiadów**. Działa ona następująco:
+
+1. Dla punktu $x_0$ bierzemy pewne sąsiedztwo $O(x_0)$
+2. Dla kazdego punktu z sąsiedztwa ustalamy ewną wagę $K_{i0}=K(x_0, x_i)$, tak aby najdalej oddalony punkt od $x_o$ miał wagę równą $0$, a najbliższy najwyzszą. Wagi dla punktów liczone zazwyczaj są przy pomocy **kerneli**
+3. Dla punktów z sąsiedztwa tworzymy model ważoną MNK. I liczymy predykcje dla $x_0$
+4. Powtarzamy dla kolejnych punktów
+
+```{r, warning=FALSE, message=FALSE}
+wezly <- 6
+wezel <- 10 / (wezly + 1) * (1:wezly)
+prawda <- data.frame(a=seq(0, 10, by = 0.01), b = seq(0,10,by=0.01) * sin(seq(0, 10, by = 0.01)))
+set.seed(33)
+x <- runif(40, 0, 10)
+gr <- c()
+for(i in 1:40){
+  gr<-c(gr, sum(x[i] > wezel))
+}
+dane <- data.frame(x = x, y = x * sin(x) + rnorm(40,0,1), gr = gr)
+
+c(0.1, 0.5, 1) %>% walk(~ {
+  dane1 <- data.frame(x = x,y = predict(smooth.spline(x, y = dane$y, df = .x),x)$y)
+
+plot(ggplot(dane, aes(x = x,y = y)) + geom_point(cex = 4) +
+       geom_line(data = prawda, aes(group = 1, x = a,y = b), lwd = 2) +
+       theme_light() +
+       stat_smooth(col = "darkgreen", se = TRUE, lwd = 2, span = .x))
+})
+```
+
+## Uogólnione modele addytywne - GAM
+
+Model addytywny jest naturalnym rozszerzeniem regresji liniowej o nieliniowy predyktor. analogiczne rozszerzenie muszą mieć GLM. **Uogólnionym modelem addytywnym** (GAM) nazwiemy model postaci:
+
+$$
+\left\{\begin{array}{l}
+y \sim N E F(\mu(\theta), \phi) \\
+g(\mu)=\eta^{*}=\beta_{0}+f_{1}\left(X_{1}\right)+\ldots+f_{n}\left(X_{n}\right)
+\end{array}\right.
+$$
+
+Estymacja modelu podobnie jak w przypadku GLM może być wykonana przy pomocy metody największej wiarygodności. Jesli za funkcje $f_i(.)$ przyjmiemy funkcje tworzone na podstawie funkcji bazowych to nie ma tu różnicy, jednakże jeśli będziemy chcieli wykorzystać  splajny wygładzane lub LOWESS to minimalizować będziemy **penalizowane log-likelihood**:
+
+$$
+\ell_{p}\left(\eta^{*} \mid y\right)=\ell\left(\eta^{*} \mid y\right)-\frac{1}{2} \sum_{j=1}^{p} \lambda_{j} \int f_{j}^{\prime \prime}(t)^{2} d t
+$$
+
+Minimalizacja penalizowanego log-likelihood przebiega przy użyciu **algorytmu lokalnego scoringu** (ważonym algorytmie wielokrotnego dopasowania) w którym to aktualizujemy dopasowanie kazdego z predyktorów z osobna traktując pozostałe predyktory jako stałe.
+
+ALGORYTM WIELOKROTNEGO DOPASOWANIA DLA MODELU ADDYTYWNEGO:
+
+
+1. Inicjalizacja wartości początkowych:
+
+$$
+\hat{\beta}_{0}=\bar{y}, \hat{f}_{j}^{(0)}\left(X_{j}\right)=0, j=1,2, \ldots, p
+$$
+
+2. Dla $j=1,2, \ldots, p$ powtarzamy cykle:
+
+$$
+\begin{array}{c}
+\hat{\eta}_{i}^{(k)}=\hat{\beta}_{0}+\sum_{j=1}^{p} \hat{f}_{j}^{(k)}(i j) \\
+\hat{\mu}_{i}^{(k)}=g^{-1}\left(\hat{\eta}_{i}^{(k)}\right) \\
+z_{i}=\hat{\eta}_{i}^{(k)}+\left(y_{i}-\hat{\mu}_{i}^{(k)}\right) g^{\prime}\left(\hat{\mu}_{i}^{(k)}\right) \\
+w_{i}=\frac{1}{\operatorname{Var}\left(y_{i}\right)^{(k)} g^{\prime 2}\left(\hat{\mu}_{i}^{(k)}\right)}
+\end{array}
+$$
+a nastepnie użycie ważonego algorytmu wielokrotnego dopasowania z wagami $w_i$ dla zmiennych $z_i$
+
+$$
+\begin{array}{c}
+R^{(j)}=y-\hat{\beta}_{0}-\sum_{i=1}^{j-1} \hat{f}_{i}^{(k+1)}\left(X_{i}\right)-\sum_{i=j+1}^{p} \hat{f}_{i}^{(k)}\left(X_{i}\right) \\
+\hat{f}_{j}^{(k+1)}\left(X_{j}\right)=S_{j}\left(R^{(j)}\right)
+\end{array}
+$$
+
+gdzie zapis $S_{j}\left(R^{(j)}\right)$ oznacza estymację przy użyciu pewnej metody wygładzanej (splajny wygładzane, regresja lokalna, funkcje jądrowe).
+
+3. Przerywamy algorytm w momencie gdy aktualizacje $\hat{f}_{j}^{(k+1)}\left(X_{j}\right)$ nie będą się zmieniać o więcej niż zadany próg $\epsilon$
