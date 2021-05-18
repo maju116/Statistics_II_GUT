@@ -1,0 +1,329 @@
+---
+title: "12. GAM - zastosowania"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path="imgs/")
+library(tidyverse)
+library(splines)
+library(tidyverse)
+library(plotly)
+library(gam)
+```
+
+# Uogólnione modele addytywne - GAM
+
+## Pakiet gam
+
+Dane `mcycle` dotyczą serii pomiarów przyspieszenia głowy w symulowanym wypadku motocyklowym, wykorzystywanych do testowania kasków zderzeniowych. Obserwacje składają się z odczytów akcelerometru wykonanych w czasie, zatem istnieją tylko dwie zmienne `times` w milisekundach po uderzeniu i `accel`, mierzone w G (siła G jest miarą rodzaju siły na jednostkę masy), które mogą być dodatnie lub ujemne przy `0` jako stanie spoczynku.
+
+```{r load_mcycle}
+data(mcycle, package = 'MASS')
+
+qplot(data = mcycle, x = times, y = accel)
+```
+
+Jak widać jest to ideanla sytuacja do modelowania nieliniowego. W `R` istnieje wiele pakietów do modelowania przy użyciu **Uogólnionych Modeli Addytywnych**, jednakże 2 najbardziej podstawowe to `gam` oraz `mgcv`.
+
+Zacznijmy od stworzenia modelu addydtynego przy użyciu pakietu `gam`:
+
+```{r gam}
+model_gam <- gam(accel ~ s(times), data = mcycle)
+```
+
+Głowną funkcją odpowiedzialną za model jest funkcja `gam`. Tworzenie formuły modelowanej zmiennej jest analogiczne jak w funkcjach `lm` i `glm`, z tą różnicą, że dodajemy nieliniowe elementy formuły. W podstawowym przypadku używamy funkcji `s`, która w pakiecie `gam` oznacza dopasowanie **splajnami wygładzanymi** (smoothing splies)
+
+```{r}
+summary(model_gam)
+mcycle <- mcycle %>%
+  mutate(model_gam_pred = predict(model_gam, mcycle))
+ggplot(mcycle, aes(x = times, y = accel)) + geom_point() + theme_bw() + geom_line(aes(y = model_gam_pred), color = "blue")
+```
+
+Aby manewrować gładkościa i dopasowaniem splajnów wygładzonych możemy zmienic **efektywne stopnie swobody** w funkcji `s`:
+
+```{r}
+model_gam2 <- gam(accel ~ s(times, df = 10), data = mcycle)
+summary(model_gam2)
+mcycle <- mcycle %>%
+  mutate(model_gam_pred2 = predict(model_gam2, mcycle))
+ggplot(mcycle, aes(x = times, y = accel)) + geom_point() + theme_bw() + geom_line(aes(y = model_gam_pred2), color = "blue")
+```
+
+Poza funkcją `s` może zostać zastąpiona innymi funkcjami nieliniowymi takimi jak:
+
+ - `ns` dla **kubicznych splajnów naturalnych**,
+ - `lo` dla **lokalnej regresji LOESS**,
+ - `bs` dla **splajnów wielomianowych**,
+ - `poly` dla **regresji wielomianowej**,
+ - innymi funkcjami nieliniowymi, które sami poprawnie zdefiniujemy
+
+```{r, message=FALSE, warning=FALSE}
+model_gam3 <- gam(accel ~ ns(times, knots = seq(0, 57, by = 3)), data = mcycle)
+model_gam4 <- gam(accel ~ bs(times, knots = seq(0, 57, by = 3), degree = 3), data = mcycle)
+model_gam5 <- gam(accel ~ lo(times, span = 0.2), data = mcycle)
+model_gam6 <- gam(accel ~ poly(times, degree = 8), data = mcycle)
+mcycle <- mcycle %>%
+  mutate(
+    model_gam_pred3 = predict(model_gam3, mcycle),
+    model_gam_pred4 = predict(model_gam4, mcycle),
+    model_gam_pred5 = predict(model_gam5, mcycle),
+    model_gam_pred6 = predict(model_gam6, mcycle))
+ggplot(mcycle, aes(x = times, y = accel)) + geom_point() + theme_bw() +
+  geom_line(aes(y = model_gam_pred2), color = "blue") +
+  geom_line(aes(y = model_gam_pred3), color = "red") +
+  geom_line(aes(y = model_gam_pred4), color = "yellow") +
+  geom_line(aes(y = model_gam_pred5), color = "black") +
+  geom_line(aes(y = model_gam_pred6), color = "green")
+```
+
+Jeśli chodzi o wybór modelu, to mamy kilka możliwości. Możemy policzyć wartość funkcji straty (prawidłowo na zbiorze testowym), sprawdzić kryterium **AIC**:
+
+```{r}
+AIC(model_gam, model_gam2, model_gam3, model_gam4, model_gam5, model_gam6) %>% arrange(AIC)
+```
+
+lub użyć testu **Likelihood ratio**, który możemy aproksymowac:
+
+```{r}
+anova(lm(accel ~ times, data = mcycle), model_gam2, test = "Chisq")
+```
+
+Sprawdźmy teraz jak pakiet `gam` poradzi sobie w przypadku wielowymiarowym.
+
+Ponizszy zestaw danych został skonstruowany przy użyciu średnich wyników w nauce według krajów z Programu międzynarodowej oceny umiejętności uczniów (PISA) 2006, wraz z GNI na mieszkańca (parytet siły nabywczej), indeksem edukacyjnym, indeksem zdrowia i wskaźnikiem rozwoju społecznego. Kluczowe zmienne są następujące:
+
+ - Ogólny wynik naukowy (średni wynik dla 15-latków)
+ - Zainteresowanie nauką
+ - Wsparcie dla badań naukowych
+ - Indeks dochodów
+ - Indeks zdrowia
+ - Indeks edukacji
+ - Wskaźnik rozwoju społecznego (składający się z indeksu dochodu, wskaźnika zdrowia i indeksu edukacji)
+
+Pierwszą rzeczą do zrobienia jest pobranie danych i przeprowadzenie kilku wstępnych inspekcji:
+
+```{r}
+pisa <- read.csv('pisasci2006.csv')
+```
+
+Możemy przyjrzeć się indywidualnym związkom zmiennych z ogólnym wynikiem naukowym:
+
+```{r bivariate_relationships, warning=FALSE, message=FALSE}
+dmelt <- pisa %>% 
+  select(-Evidence, -Explain, -Issues) %>% 
+  gather(key = Variable, 
+         value = Value, 
+         -Overall, -Country)
+
+ggplot(aes(x = Value,y = Overall), data = dmelt) +
+  geom_point() +
+  geom_smooth(se = F, lwd = .5, color = 'red') +
+  geom_text(aes(label = Country), alpha = 0, size = 1,angle = 30, hjust = -.2,
+ vjust = -.2) +
+  facet_wrap(~ Variable, scales = 'free_x') +
+  labs(x = '') +
+  theme_bw()
+```
+
+Zacznijmy od modelu liniowego i prostego modelu addytywnego ze splajnami wygładzonymi:
+
+```{r}
+mod_lm <- gam(Overall ~ Income + Edu + Health, data = pisa)
+summary(mod_lm)
+```
+
+
+```{r}
+mod_gam <- gam(Overall ~ s(Income) + s(Edu) + s(Health), data = pisa)
+summary(mod_gam)
+```
+
+Widzimy, że dopasowanie wydaje się lepsze. Ponadto Anowa dla efektów nieparametrycznych mówi nam o tym, ze efekty nieliniowe dla `Edu` nie są istotne, wiec mozemy zobaczyć co staie się gdzy przeniesimy je do efektów liniowych. Dodatkowo `Health` wydaje się byc całkowicie nieistotny.
+
+```{r}
+mod_gam2 <- gam(Overall ~ s(Income) + Edu, data = pisa)
+summary(mod_gam2)
+AIC(mod_lm, mod_gam)
+AIC(mod_gam, mod_gam2)
+```
+
+W pakiecie `gam` istnieje również funkcja `step.Gam`, która pozwala na wybór zmiennych regresją krokową. Działa ona w analogiczny sposób do funkcji `step`.
+
+## Pakiet mgcv
+
+Alternatywą dla pakietu `gam` jest pakiet `mgcv`. Istnieje wiele róznic między dwoma pakietami:
+
+1. Pakiet `gam` używa **algorytmu lokalnego scoringu** opartego na **algorytmie wstecznego dopasowania** (backfitting algorithm), pakiet `mgcv` korzysta z **algorytmu PIRLS** (penalized iteratively reweighted
+least squares)
+2. W `gam` możemy użyć splajnów wygładzanych i LOWESS, w `mgcv` nie, jednakże mamy do wyboru dużo większą liczbę baz funkcyjnych i możliwość modelowania tensorowego
+3. W `gam` selekcji zmiennych możemy dokonać tylko poprzez regresję krokową, w `mgcv` poprzez regularyzację.
+4. W `mgcv` paraetry wygładzania sa wybierane automatycznie przy uzyciu GCV (generalizec cross-validation) lub REML (restricted maximum likelihood)
+
+Zacznijmy od budowy proetego modelu dla zbioru `mcycle`.
+
+```{r mgvc}
+detach("package:gam", unload = TRUE)
+library(mgcv)
+model_mgcv <- gam(accel ~ s(times), data = mcycle)
+```
+
+Głowną funkcją odpowiedzialną za model jest ponownie funkcja `gam`. Tworzenie formuły modelowanej zmiennej jest analogiczne jak w funkcjach `lm` i `glm`, z tą różnicą, że dodajemy nieliniowe elementy formuły. W podstawowym przypadku używamy funkcji `s`, która w pakiecie `mgcv` oznacza dopasowanie ogólną funkcja wygładzaną.
+
+```{r}
+summary(model_mgcv)
+mcycle <- mcycle %>%
+  mutate(model_mgcv_pred = predict(model_mgcv, mcycle))
+ggplot(mcycle, aes(x = times, y = accel)) + geom_point() + theme_bw() + geom_line(aes(y = model_mgcv_pred), color = "blue")
+```
+
+Zauważmy, że nie musimy tu dobierać ręcznie efektywnych stopni swobody. W pakiecie `mgcv` w funkcji `s` mozemy sterować następujacymi parametrami:
+
+ - `k` - stopień splajnu
+ - `fx` - mówi czy obiekt jest splajnem penalizowanym czy nie
+ - `bs` - dwulitegowe oznacznie bazy splajnów(dokładna lista dostępna po wpisaniu `?smooth.terms` w konsoli)
+
+```{r, message=FALSE, warning=FALSE}
+model_mgcv2 <- gam(accel ~ s(times, bs = "ts"), data = mcycle) # Thin plate splines
+model_mgcv3 <- gam(accel ~ s(times, bs = "ds"), data = mcycle) # Duchon splines
+model_mgcv4 <- gam(accel ~ s(times, bs = "cs"), data = mcycle) # Cubic regression splines
+model_mgcv5 <- gam(accel ~ s(times, bs = "gp"), data = mcycle) # Gaussian process smooths
+model_mgcv6 <- gam(accel ~ s(times, bs = "ps"), data = mcycle) # P-splines
+mcycle <- mcycle %>%
+  mutate(
+    model_mgcv_pred2 = predict(model_mgcv2, mcycle),
+    model_mgcv_pred3 = predict(model_mgcv3, mcycle),
+    model_mgcv_pred4 = predict(model_mgcv4, mcycle),
+    model_mgcv_pred5 = predict(model_mgcv5, mcycle),
+    model_mgcv_pred6 = predict(model_mgcv6, mcycle))
+ggplot(mcycle, aes(x = times, y = accel)) + geom_point() + theme_bw() +
+  geom_line(aes(y = model_mgcv_pred), color = "purple") +
+  geom_line(aes(y = model_mgcv_pred2), color = "blue") +
+  geom_line(aes(y = model_mgcv_pred3), color = "red") +
+  geom_line(aes(y = model_mgcv_pred4), color = "yellow") +
+  geom_line(aes(y = model_mgcv_pred5), color = "black") +
+  geom_line(aes(y = model_mgcv_pred6), color = "green")
+```
+
+Jeśli chodzi o wybór modelu, to mamy kilka możliwości. Możemy policzyć wartość funkcji straty (prawidłowo na zbiorze testowym), sprawdzić kryterium **AIC**:
+
+```{r}
+AIC(model_mgcv, model_mgcv2, model_mgcv3, model_mgcv4, model_mgcv5, model_mgcv6) %>% arrange(AIC)
+```
+
+lub użyć testu **Likelihood ratio**, który możemy aproksymowac:
+
+```{r}
+anova(lm(accel ~ times, data = mcycle), model_mgcv2, test = "Chisq")
+```
+
+Sprawdźmy teraz jak pakiet `mgcv` poradzi sobie w przypadku wielowymiarowym.
+
+```{r}
+pisa <- read.csv('pisasci2006.csv')
+```
+
+Zacznijmy od modelu liniowego i prostego modelu addytywnego ze splajnami wygładzonymi:
+
+```{r}
+mod_lm <- gam(Overall ~ Income + Edu + Health, data = pisa)
+summary(mod_lm)
+```
+
+```{r}
+mod_mgcv <- gam(Overall ~ s(Income) + s(Edu) + s(Health), data = pisa)
+summary(mod_mgcv)
+```
+
+Widzimy, że dopasowanie wydaje się lepsze. Ponadto, ponieważ efektywne stopnie swobody dla Zdrowia wynoszą `1`, jest to zasadniczo dopasowanie liniowe, więc w razie potrzeby możemy pozostawić je wśród terminów parametrycznych.
+
+```{r}
+mod_mgcv2 <- gam(Overall ~  s(Income) + s(Edu) + Health, data = pisa)
+summary(mod_mgcv2)
+AIC(mod_lm, mod_mgcv)
+AIC(mod_mgcv, mod_mgcv2)
+```
+
+Możemy przyjrzeć się interakcjom efektów zmiennych tak samo, jak w przypadku innych modeli. Użycie gładkiej interakcji pozwoli na interakcje dwóch predyktorów. Funkcja `te` pozwala na stworzenie tensorowych funkcji gładkich:
+
+```{r}
+mod_mgcv3 <- gam(Overall ~ Health + te(Income, Edu), data = pisa)
+summary(mod_mgcv3)
+```
+
+Wyniki mozemy nastepnie zwizualizować:
+
+```{r, warning=FALSE}
+vis.gam(mod_mgcv3, view = c('Income', 'Edu'), theta = 90, phi = 10)
+vis.gam(mod_mgcv3, view = c('Income', 'Edu'), plot.type = 'contour')
+visibly::plot_gam_3d(model = mod_mgcv3, main_var = Income, second_var = Edu, palette = 'bilbao', direction = 1)
+```
+
+## Alternating conditional expectations
+
+Do tej pory używaliśmy pewnych nieliniowych funkcji, aby "połączyć" nasze predyktory ze zmienną objaśnianą.  bardzo często jednak zamiast stosować regresję nieliniową stosuje się pewne transformacje predyktorów np. logarytmy, potęgi, funkcje wykładnicze itp. aby otrzymać zmienne, które dobrze działają w modelu liniowym. Można by więc zadac pytanie czy istnieje pewnego rodzaju "optymalna transformacja" predyktorów, która da nam efekt zależności liniowych ?
+
+Odpowiedzią na to pytanie jest algorytm **ACE (Alternating conditional expectations)**. ACE stara się znaleźć transformacje, które dadzą najlepszy model addytywny. ACE transformuje zmienną objasnianą $y$ jak i predyktory $X$ tak, aby zminimalizować **frakcję niewyjasnionej wariancji** (fraction of variance not explained). 
+
+Załóżmy, że mamy do czynienia ze zmienna objaśnianą $y$ oraz predyktorami $X = (X_1, ..., X_n)$. Załóżmy także, że:
+
+$$
+\theta(Y), \varphi_{1}\left(X_{1}\right), \ldots, \varphi_{p}\left(X_{p}\right)
+$$
+są transformacjmami o sredniej równej $0$. Poprzez frakcję niewyjaśnionej wariancji określimy jako:
+
+$$
+e^{2}\left(\theta, \varphi_{1}, \ldots, \varphi_{p}\right)=\frac{\mathbb{E}\left[\theta(y)-\sum_{i=1}^{p} \varphi_{i}\left(X_{i}\right)\right]^{2}}{\mathbb{E}\left[\theta^{2}(y)\right]}
+$$
+Zasadniczo naszym zadaniem jest znalezienie funkcji, które minimalizują powyższe wyrażanie, jednakże z reguły jest to bardzo trudne. ACE robi w sposób iteracyjny, korzystając z wersji algorytmu dopasowania wstecznego:
+
+1. Przyjmujemy $\varphi_{1}\left(X_{1}\right), \ldots, \varphi_{p}\left(X_{p}\right)$ jako stałe. Dzięki temu mamy:
+
+$$
+\theta_{1}(y)=\mathbb{E}\left[\sum_{i=1}^{p} \varphi_{i}\left(X_{i}\right) \mid Y\right]
+$$
+2. Normalizujemy $\theta_{1}(y)$ do wariancji jednostkowej
+3. Dla każdego $k$ przyjmujemy pozostałe $\varphi_{i}(X_{i})$ oraz $\theta(y)$ za stałe. Dzięki temu minimalizacja $e^{2}$ sprowadza się do:
+
+$$
+\tilde{\varphi}_{k}=\mathbb{E}\left[\theta(Y)-\sum_{i \neq k} \varphi_{i}\left(X_{i}\right) \mid X_{k}\right]
+$$
+4. Iterujemy kroki 1-3 do czasu aż $e^{2}$ przestanie się zmieniać.
+
+Spójrzmy na przykład:
+
+```{r}
+set.seed(55)
+library(acepack)
+sim_data <- tibble(
+  x1 = runif(200, -1, 1),
+  x2 = runif(200, -1, 1),
+  x3 = runif(200, -1, 1),
+  x4 = runif(200, -1, 1),
+  x5 = runif(200, -1, 1),
+  y = log(4 + sin(4*x1) + abs(x2) + x3^2 + x4^3 + x5 + rnorm(200))
+)
+
+ace_results <- ace(as.matrix(sim_data)[ , 1:5], sim_data$y)
+
+sim_data_transformed <- as_tibble(ace_results$tx) %>%
+  mutate(y = ace_results$ty) %>%
+  set_names(paste0(names(sim_data), "_transformed")) %>%
+  bind_cols(sim_data)
+
+ggplot(sim_data_transformed, aes(x2, y)) + theme_bw() + geom_point()
+ggplot(sim_data_transformed, aes(x2, x2_transformed)) + theme_bw() + geom_point()
+ggplot(sim_data_transformed, aes(x1, y)) + theme_bw() + geom_point()
+ggplot(sim_data_transformed, aes(x1, x1_transformed)) + theme_bw() + geom_point()
+ggplot(sim_data_transformed, aes(y, y_transformed)) + theme_bw() + geom_point()
+```
