@@ -16,8 +16,6 @@ output:
 knitr::opts_chunk$set(echo = TRUE, fig.path="imgs/")
 library(tidyverse)
 library(splines)
-library(tidyverse)
-library(plotly)
 library(gam)
 ```
 
@@ -168,7 +166,7 @@ Alternatywą dla pakietu `gam` jest pakiet `mgcv`. Istnieje wiele róznic międz
 least squares)
 2. W `gam` możemy użyć splajnów wygładzanych i LOWESS, w `mgcv` nie, jednakże mamy do wyboru dużo większą liczbę baz funkcyjnych i możliwość modelowania tensorowego
 3. W `gam` selekcji zmiennych możemy dokonać tylko poprzez regresję krokową, w `mgcv` poprzez regularyzację.
-4. W `mgcv` paraetry wygładzania sa wybierane automatycznie przy uzyciu GCV (generalizec cross-validation) lub REML (restricted maximum likelihood)
+4. W `mgcv` paraetry wygładzania sa wybierane automatycznie przy uzyciu GCV (generalized cross-validation) lub REML (restricted maximum likelihood)
 
 Zacznijmy od budowy proetego modelu dla zbioru `mcycle`.
 
@@ -248,7 +246,7 @@ summary(mod_mgcv)
 Widzimy, że dopasowanie wydaje się lepsze. Ponadto, ponieważ efektywne stopnie swobody dla Zdrowia wynoszą `1`, jest to zasadniczo dopasowanie liniowe, więc w razie potrzeby możemy pozostawić je wśród terminów parametrycznych.
 
 ```{r}
-mod_mgcv2 <- gam(Overall ~  s(Income) + s(Edu) + Health, data = pisa)
+mod_mgcv2 <- gam(Overall ~  s(Income) + s(Edu), data = pisa)
 summary(mod_mgcv2)
 AIC(mod_lm, mod_mgcv)
 AIC(mod_mgcv, mod_mgcv2)
@@ -257,7 +255,7 @@ AIC(mod_mgcv, mod_mgcv2)
 Możemy przyjrzeć się interakcjom efektów zmiennych tak samo, jak w przypadku innych modeli. Użycie gładkiej interakcji pozwoli na interakcje dwóch predyktorów. Funkcja `te` pozwala na stworzenie tensorowych funkcji gładkich:
 
 ```{r}
-mod_mgcv3 <- gam(Overall ~ Health + te(Income, Edu), data = pisa)
+mod_mgcv3 <- gam(Overall ~ Health  + te(Income, Edu), data = pisa)
 summary(mod_mgcv3)
 ```
 
@@ -278,7 +276,7 @@ Odpowiedzią na to pytanie jest algorytm **ACE (Alternating conditional expectat
 Załóżmy, że mamy do czynienia ze zmienna objaśnianą $y$ oraz predyktorami $X = (X_1, ..., X_n)$. Załóżmy także, że:
 
 $$
-\theta(Y), \varphi_{1}\left(X_{1}\right), \ldots, \varphi_{p}\left(X_{p}\right)
+\theta(y), \varphi_{1}\left(X_{1}\right), \ldots, \varphi_{p}\left(X_{p}\right)
 $$
 są transformacjmami o sredniej równej $0$. Poprzez frakcję niewyjaśnionej wariancji określimy jako:
 
