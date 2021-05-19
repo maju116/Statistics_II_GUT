@@ -213,6 +213,11 @@ p1_hat <- 0.8
 p2_hat <- 0.15
 em_coins <- function(data, p1_hat, p2_hat, iter = 10) {
   coins_sum <- data %>% map_dbl(~ sum(.))
+  results <- tibble(
+    iteration = 0,
+    p1_hat = p1_hat,
+    p2_hat = p2_hat
+  )
   for (i in 1:iter) {
     likelihood <- list(p1_hat, p2_hat) %>% map(~ {
       p <- .x
@@ -227,7 +232,10 @@ em_coins <- function(data, p1_hat, p2_hat, iter = 10) {
     p1_hat <- w_count[[1]][2] / sum(w_count[[1]])
     p2_hat <- w_count[[2]][2] / sum(w_count[[2]])
     print(paste("New p1:", p1_hat, "New p2:", p2_hat))
+    results <- results %>% add_row(iteration = i, p1_hat = p1_hat, p2_hat = p2_hat)
   }
+  ggplot(results, aes(x = iteration)) + geom_line(aes(y = p1_hat), color = "red") +
+    geom_line(aes(y = p2_hat), color = "blue") + theme_bw()
 }
 em_coins(data, p1_hat, p2_hat, 10)
 ```
