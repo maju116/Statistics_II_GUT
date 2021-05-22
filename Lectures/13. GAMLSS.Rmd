@@ -36,6 +36,7 @@ ggplot(blood, aes(age, diast)) + theme_bw() + geom_point() +
   xlab("WIEK") + ylab("CIŚNIENIE ROZKURCZOWE") +
   stat_smooth(method = "lm", se = TRUE)
 ```
+
 Na powyższym rysunku widać dopasowanie modelem regresji liniowej. Na pierwszy rzut oka widać, że zależność między wiekiem, a ciśnieniem jest liniowa co może świadczć o słuszności wyboru modelu liniowego. Na wykresie wiedać jednak też, że poza średnią wartością ciśnienia wraz z wiekiem zmienia się również jego wariancja, czyli mamy do czynienia z **heteroskedastycznością**. Jednym ze standardowych rozwiązań tego problemu jest zmiana metody najmniejszych kwadratów (OLS) na **ważoną metodę najmniejszych kwadratów** (WLS). 
 
 Zastanówmy się jednak nad nieco innym podejściem. Zamiast wyliczać wagi w modelu WLS mozemy do naszego modelu dodać kolejne równanie i spróbować zamodelować wariancję tak samo jak wartość oczekiwaną:

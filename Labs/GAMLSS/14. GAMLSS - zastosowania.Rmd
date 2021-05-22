@@ -1,0 +1,267 @@
+---
+title: "14. GAMLSS - zastosowania"
+author: "Michał Maj"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    number_sections: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path="imgs/")
+library(tidyverse)
+library(gamlss)
+```
+
+# Uogólnione modele addytywne z parametrami położenia skali i kształtu - GAMLSS
+
+## Model liniowy z heteroskedastycznością
+
+Na poprzenich zajęciach rozważaliśmy model liniowy modelujący zależność miedzy wiekiem pacjenta, a ciśnieniem rozkurczowym:
+
+$$
+DIA|AGE \sim N(\mu, \sigma^2)\\
+\mu = \beta_0 + \beta_1 AGE
+$$
+
+gdzie $DIA$ oznacza ciśnienie rozkurczowe, a $AGE$ oznacza wiek pacjenta.
+
+```{r, message=FALSE, warning=FALSE}
+blood <- read_csv2("blood.csv")
+ggplot(blood, aes(age, diast)) + theme_bw() + geom_point() +
+  xlab("WIEK") + ylab("CIŚNIENIE ROZKURCZOWE") +
+  stat_smooth(method = "lm", se = TRUE)
+```
+
+W modelu tym występuje **heteroskedastyczność**, czyli niestałość wariancji. Oznacza to, że zalożenia powyższego modelu nie są spełnione. Jako alternatywę rozpatrzmy model:
+
+$$
+DIA|AGE \sim N(\mu, \sigma^2)\\
+\mu = \beta_{01} + \beta_{11} AGE\\
+\sigma = \beta_{02} + \beta_{12} AGE
+$$
+
+Poza wartością oczekiwaną chcemy także zamodelować odchylenie standardowe w naszym modelu, czyli mamy tu do czynienia z modelem rodziny $GAMLSS$. Podstawową funkcją w pakiecie `gamlss` jest funkcja `gamlss`, która odpowiada za tworzenie i dopasowanie modelu statystycznego. Aby do naszego modelu dodać równanie modelujące odchylenie standardowe musimy użyć argumentu `sigma.formula`. Porównajmy klasyczny model liniowy z modelem ze zmienną wariancją:
+
+```{r}
+blood_lm <- gamlss(formula = diast ~ age, data = blood, family = NO(sigma.link = "identity"))
+blood_lm_het <- gamlss(formula = diast ~ age, sigma.formula = ~ age, data = blood, family = NO(sigma.link = "identity"))
+```
+
+Podsumowanie modelu liniowego daje nam te same wyniki co funkcja `lm`:
+
+```{r}
+summary(blood_lm)
+blood <- blood %>%
+  mutate(
+    model_lm_pred = fitted(blood_lm, "mu"),
+    model_lm_pred_sigma = fitted(blood_lm, "sigma")
+  )
+ggplot(blood, aes(x = age, y = diast)) + geom_point() + theme_bw() +
+  geom_line(aes(y = model_lm_pred), color = "blue") +
+  geom_line(aes(y = model_lm_pred + model_lm_pred_sigma), color = "red") +
+  geom_line(aes(y = model_lm_pred - model_lm_pred_sigma), color = "red")
+```
+
+Sprawdźmy teraz jak wygląda model z heteroskedastycznością:
+
+```{r}
+summary(blood_lm_het)
+blood <- blood %>%
+  mutate(
+    model_lm_het_pred = fitted(blood_lm_het, "mu"),
+    model_lm_het_pred_sigma = fitted(blood_lm_het, "sigma")
+  )
+ggplot(blood, aes(x = age, y = diast)) + geom_point() + theme_bw() +
+  geom_line(aes(y = model_lm_het_pred), color = "blue") +
+  geom_line(aes(y = model_lm_het_pred + model_lm_het_pred_sigma), color = "red") +
+  geom_line(aes(y = model_lm_het_pred - model_lm_het_pred_sigma), color = "red")
+```
+
+Porównanie modeli mozemy przeprowadzić a pomocą np. krytermium AIC lub R-squared:
+
+```{r}
+Rsq(blood_lm)
+Rsq(blood_lm_het)
+AIC(blood_lm, blood_lm_het)
+```
+
+## Od modelu liniowego do modelu GAMLSS
+
+Rozpatrzmy teraz trochę bardziej skomplikowane dane. Zbiór danych `rent` zawiera obserwacje zebrane podczas badania przeprowadzonego w kwietniu 1993 r. Przez Infratest Sozialforschung. Wybrano losową próbę lokali z nowymi umowami najmu lub podwyżkami czynszu w ciągu ostatnich czterech lat w Monachium, obejmującą: i) pokoje jednoosobowe, ii) małe mieszkania, iii) mieszkania, iv) domy dwurodzinne. Mieszkania podlegające regulacjom cenowym, domy jednorodzinne i domy specjalne, takie jak penthouse'y, zostały wykluczone, ponieważ różnią się one raczej od reszty i są uważane za odrębny rynek. Na potrzeby niniejszego badania wykorzystano obserwacje z 1967 r. Zmiennych wymienionych poniżej, tj. Zmiennej odpowiedzi renty R, po której następują zmienne objaśniające.
+
+Do modelowania uzyjemy następujących zmiennych:
+
+- R - miesięczny czynsz pomniejszony o obliczone lub szacowane koszty mediów
+- Fl - powierzchnia w $m^2$
+- A - rok budowy
+- H - dwupoziomowy współczynnik wskazujący, czy istnieje centralne ogrzewanie (1 - tak, 0 - nie)
+- loc - czynnik wskazujący, czy lokalizacja jest poniżej średniej (1), średnia (2) lub powyżej średniej (3)
+
+Zacznijmy od zbadania rozkładów zmiennych:
+
+```{r}
+data("rent")
+ggplot(rent, aes(x = Fl, y = R)) + geom_point() + theme_bw()
+ggplot(rent, aes(x = A, y = R)) + geom_point() + theme_bw()
+ggplot(rent, aes(x = H, y = R)) + geom_boxplot() + theme_bw()
+ggplot(rent, aes(x = loc, y = R)) + geom_boxplot() + theme_bw()
+```
+
+Pierwszy wykres ukazyjący wozkład czynszu względem pola powierzchni mieszkania sugeruje relację rosnącą (dodatnia korelacja), ze zwiększoną wariancją dla dużych powierzchni mieszkaniowych (czyli brak stałości wariancji). Istnieją również pewne oznaki (do przetestowania) prawostronnej skośności rozkładu czynszu.
+
+Specyfika rozkładu czynszu na tle roku budowy, wynika z metody zbierania danych. Wiele obserwacji roku budowy zebrane zostało w skali interwałowej, a nastepnie uśrednione do srodka danego przedziału. Wykres ten sugeruje, że w przypadku mieszkań do 1960 r. średni czynsz jest mniej więcej stały, ale w przypadku mieszkań wybudowanych po tym roku mediana czynszu rośnie.
+
+Dwa wykresy pudełkowe pokazują, jak zmienia się czynsz w zależności od zmiennych kategorycznych. Mediana czynszu rośnie, jeśli mieszkanie jest wyposażone w centralne ogrzewanie, a także wraz ze zmianą lokalizacji (poniżej średniej do średniej, a następnie powyżej średniej). Nie ma tu niespodzianek w, ale znowu problem skośności jest wyraźny, z asymetrycznymi pudełkami od mediany i dłuższym górnym niż dolnym wąsie.
+
+Podsumowując, model statystyczny powinien sobie radzić z problemami:
+
+1. Złożoność relacji między predyktorami a zmienną objaśnianą - najprawdopodobniej jest nieliniowa.
+2. Niestałość wariancji zmiennej objaśnianej.
+3. Skośność w rozkładzie zmiennej objaśnianej.
+
+Póki co zaczniemy od modelu standardowej regresji liniowej i będziemy go rozwijać:
+
+```{r}
+r1 <- gamlss(formula = R ~ Fl + A + H + loc, family = NO, data = rent, trace = FALSE)
+```
+
+Dopsaowany model wygląda nastepująco:
+
+$$
+\hat{\mu}=-2775.04 + 8.84 Fl + 1.48 A -204.76(H=1)+134.05(loc=2)+ 209.58(loc=3) \\ \\
+\log (\hat{\sigma})= 5.73165
+$$
+
+Zauważmy, że $\sigma$ modelowane jest przy użyciu logarytmicznej **funkcji łączącej**. Sprawdźmy dopasowanie naszego modelu:
+
+```{r}
+Rsq(r1)
+plot(r1)
+```
+
+Założenia o normalności modelu można łatwo odrzucic patrząc na **Q-Q plot** (widać odejście od zależności liniowej między uporządkowanymi zaobserwowanymi znormalizowaymi kwantylami reszt i ich przybliżonymi wartościami oczekiwanymi), co sugeruje pozytywną skośność rozkładu. 
+
+Dodatkowo wykres nr 1. (reszty vs wartości dopasowane) nie jest jednostajnie rozrzucowny wokół $0$ co może sugerować heteroskedastyczność.
+
+Zauważmy dodatkowo, ze czynasz może przyjmować tylko i wyłącznie wartości dodatkie, co oznacza, że powinniśmy dostosować nasz rozkład.
+
+Zmienimy więc nasz model z regresji liniowej na GLM z rozkładem Gamma.
+
+$$
+R|X \sim Gamma(\mu, \sigma^2)\\
+log(\mu) = \beta_1 X\\
+log(\sigma) = \beta_2
+$$
+
+w `gamlss` rozkład gamma ma następujacą parametryzację dla $\sigma$:
+
+$$
+\sigma=\sqrt{\phi}
+$$
+gdzie $\phi$ jest **paraetrem dyspersji**.
+
+```{r}
+r2 <- gamlss(formula = R ~ Fl + A + H + loc, family = GA, data = rent, trace = FALSE)
+summary(r2)
+```
+
+Dopsaowany model wygląda nastepująco:
+
+$$
+\log (\hat{\mu})= 2.865 + 0.0106 Fl + 0.00151 A -0.3(H=1)+0.191(loc=2)+ 0.264(loc=3) \\ \\
+\log(\hat{\sigma})= -0.9822
+$$
+
+Kolejnym pasującym rozkładem moze być **Inverse-Gamma**.
+
+```{r}
+r22 <- gamlss(formula = R ~ Fl + A + H + loc, family = IG, data = rent, trace = FALSE)
+```
+
+Wszystkie 3 modele mają tą samą liczbę parametrów dlatego możemy je porównać uogólnionym kryterium AIC:
+
+```{r}
+GAIC(r1, r2, r22, k = 0)
+```
+
+Wyglada na to, że rozkład Gamma daje najlepsze dopasowanie. Zobaczmy teraz wykresy dopasowania modelu:
+
+```{r}
+plot(r2)
+```
+
+Problemy, które mieliśmy do tej pory zostały częściowo rozwiązane, jednakże mozemty teraz wprowadzić nieliniowość do anszego modelu i zobaczyć czy poprawi to wyniki.
+
+```{r}
+r3 <- gamlss(R ~ pb(Fl) + pb(A) + H + loc, family = GA, data = rent, trace = FALSE)
+AIC(r2, r3)
+summary(r3)
+```
+
+Wygląda na to, że GAM z **P-splajnami** jest nieco lepszy niż GLM, jednakże powinniśmy wykonać dokładniszy test dla estymatorów nieliniowych. Możemy to zrobić przy pomocy funkcji `drop1`:
+
+```{r}
+drop1(r3)
+```
+
+Jak widać wszystkie zmienne są istotne. Możemy także zwizualizować dopasowanie zmiennych naszego modelu:
+
+```{r}
+term.plot(r3, pages = 1, ask = FALSE)
+```
+
+Widać, że wielkość czynszu zmienia się praktycznie liniowo względem pola powierzchni, a bardzo nieliniowo względem roku budowy. Dopasowanie modelu GAM możemy sprawdzić używająć **Worm plot** (QQ-plot dla reszt pozbawionych trendu):
+
+```{r}
+wp(r3, ylim.all = .6)
+```
+
+W kolejnym kroku do modelu GAM dodamy modelowanie odchylenia standardowego:
+
+```{r}
+r4 <- gamlss(R ~ pb(Fl) + pb(A) + H + loc, sigma.fo = ~ pb(Fl) + pb(A) + H + loc, family = GA, data = rent, trace = FALSE)
+r5 <- gamlss(R ~ pb(Fl) + pb(A) + H + loc, sigma.fo = ~ pb(Fl) + pb(A) + H + loc, family = IG, data = rent, trace = FALSE)
+AIC(r3, r4, r5)
+```
+
+Ponownie najlepszy okazuje się model z rozkładem Gamma. Sprawdźmy jak wygląda dopasowanie predyktorów i ich istotność dla odchylenia standardowego:
+
+```{r}
+term.plot(r4, pages = 1, what = "sigma", ask = FALSE)
+drop1(r4, what = "sigma")
+```
+
+Jak widzimy centralne ogrzewanie nie ma wpływu na odchylenie standardowe.
+
+```{r}
+wp(r4, ylim.all = .6)
+```
+
+Kolejnym krokiem będzie zamodelowanie skośności. Musimy jednak odejść od rozkładu Gamma i wybrać jakiś gdzie skośność można zamodelować. użyjemy rozkładu **BCCGo** (Box-Cox Cole and Green):
+
+```{r}
+r6 <- gamlss(R ~ pb(Fl) + pb(A) + H +  loc,
+             sigma.fo = ~ pb(Fl) + pb(A) + H + loc,
+             nu.fo = ~ 1,
+             family = BCCGo, data = rent , trace = FALSE)
+r7 <- gamlss(R ~ pb(Fl) + pb(A) + H +  loc,
+             sigma.fo = ~ pb(Fl) + pb(A) + H + loc,
+             nu.fo = ~ pb(Fl) + pb(A) + H + loc,
+             family = BCCGo , data = rent , trace = FALSE)
+AIC(r4, r6, r7)
+```
+
+Kryterium AIC mówi, że dopasowanie rozkładem BCCgo jest lepszym rozwiązaniem niz rozkład Gamma:
+
+```{r}
+wp(r6, ylim.all = .6); title("r6: BCCG(mu, sigma)")
+wp(r7, ylim.all = .6); title("r7: BCCG(mu, sigma, nu)")
+```
+
+Oba modele dają dobre dopasowanie, wiec możemy zakonczyć analizę.
