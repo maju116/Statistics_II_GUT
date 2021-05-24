@@ -15,7 +15,9 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path="imgs/")
 library(tidyverse)
+library(ggeffects)
 library(gamlss)
+library(lme4)
 ```
 
 # Uogólnione modele addytywne z parametrami położenia skali i kształtu - GAMLSS
@@ -164,6 +166,7 @@ w `gamlss` rozkład gamma ma następujacą parametryzację dla $\sigma$:
 $$
 \sigma=\sqrt{\phi}
 $$
+
 gdzie $\phi$ jest **paraetrem dyspersji**.
 
 ```{r}
@@ -243,7 +246,7 @@ Jak widzimy centralne ogrzewanie nie ma wpływu na odchylenie standardowe.
 wp(r4, ylim.all = .6)
 ```
 
-Kolejnym krokiem będzie zamodelowanie skośności. Musimy jednak odejść od rozkładu Gamma i wybrać jakiś gdzie skośność można zamodelować. użyjemy rozkładu **BCCGo** (Box-Cox Cole and Green):
+Kolejnym krokiem będzie zamodelowanie skośności. Musimy jednak odejść od rozkładu Gamma i wybrać jakiś gdzie skośność można zamodelować. Użyjemy rozkładu **BCCGo** (Box-Cox Cole and Green orig).
 
 ```{r}
 r6 <- gamlss(R ~ pb(Fl) + pb(A) + H +  loc,
@@ -265,3 +268,142 @@ wp(r7, ylim.all = .6); title("r7: BCCG(mu, sigma, nu)")
 ```
 
 Oba modele dają dobre dopasowanie, wiec możemy zakonczyć analizę.
+
+## Modele mieszane
+
+Za początek rozpatrzmy prosty przykład. Wyobraźmy sobie, że badamy zależność między ciśnieniem krwi, a paleniem papierosów. Zebraliśmy w każdej grupie $10$ pacjentów i od kazdego z nich pobraliśmy $5$ pomiarów w ciągu najbliższych 24 godzin. W klasycznym przypadku stworzylibyśmy nasz prosty model liniowy (t-test, ANOVA) gdzie predyktorem byłbaby zmienna mówiąca o tym czy dany pacjent pali czy nie, a zmienną objaśnianą byłoby ciśnienie. Zauważmy jednak, że eksperyment stworzony w ten sposób wprowadza dodatkową zmienną, a mianowicie ID pacjenta. Zauważmy, że kazde 5 próbek od danego pacjenta może być ze sobą skorelowane i każdy pacjent moze miec inny wyjściowy poziom ciśnienia. Informację tę należałoby uwzględnić w naszym modelu, jednakże nie interesuje nas dokładny wpływ każdego pacjenta (nie chcemy dodatkowej $\beta$ dla każdego pacjenta) jak to było w przypadku zmiennej mówiącej o paleniu. Zmianne mówiąca o paleniu jest w tym przypadku **efektem stałym** (fixed effect), a ID pacjenta jest **efektem losowym** (random efect). Model z obiema typami efektów nazwiemy **modelem mieszanym** (mixed model).
+
+Zmienna, która traktowana jest jako efekt stały w jednym modelu, traktowana może być jako efekt losowy w innym, dlatego też nalezy zastanowić się nad konstrukcją modelu w zalezności od tego jak skonstruowany był eksperyment i to na jakie pytanie chcemy odpowiedzieć. O efektach losowych możemy mysleć jak o efektach dla konkretnych podgrup, z większej możliwej liczby grup z całej populacji (mamy kilku pacjentów z większej ilości), gdzie efekty te nie są istotne do określenia w naszej analize.
+
+Zacznijmy od prostego fikcyjnego przykładu. Interesować nas będzie zaleźność między zmienną `testScore` mówiącej o inteligencji, a predyktorem `bodyLength` mówiącej o rozmiarze smoka:
+
+```{r}
+load("dragons.RData")
+dragons$X <- NULL
+dragons$bodyLength2 <- scale(dragons$bodyLength, center = TRUE, scale = TRUE)
+ggplot(dragons, aes(x = testScore)) + theme_bw() + geom_histogram(bins = 30)
+```
+
+Klasycznym podejściem byłoby zaczęcie od modelu regresji liniowej:
+
+```{r}
+basic.lm <- gamlss(formula = testScore ~ bodyLength2, data = dragons)
+summary(basic.lm)
+ggplot(dragons, aes(x = bodyLength, y = testScore)) +
+  theme_bw() +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+Wydaje się, że inteligencja rośnie wraz z rozmiarem co jest nieco nieoczekiwane. Sprawdźmy więc dopasowanie naszego modelu:
+
+```{r}
+plot(basic.lm)
+```
+
+Zauważmy, że pomineliśmy zmienną `mountainRange` mówiacą o tym gdzie została zebrana obserwacja:
+
+```{r}
+ggplot(dragons, aes(x = mountainRange, y = testScore)) + theme_bw() + geom_boxplot()
+ggplot(dragons, aes(x = bodyLength, y = testScore, color = mountainRange)) +
+  theme_bw() +
+  geom_point()
+```
+
+Powyższe wykresy pokazują, że zebrane obserwacje nie są niezależne dla kokretnych grup `mountainRange`. Pokazuje to, że powinniśmy uwzględnić tę zmienną w modelu, dodajmy ja wiec do naszego równania:
+
+```{r}
+ggplot(aes(bodyLength, testScore), data = dragons) +
+  geom_point() +
+  theme_bw() +
+  facet_wrap(~ mountainRange) +
+  xlab("length") + 
+  ylab("test score")
+mountain.lm <- gamlss(formula = testScore ~ bodyLength2 + mountainRange, data = dragons)
+summary(mountain.lm)
+```
+
+Zauważmy, że po dodaniu zmiennej `mountainRange` zmienna `bodyLength2` stała się nieistotna. Pomyślmy przez chwilę o tym, co tutaj robimy. Powyższy model szacuje **różnicę w wynikach testów między pasmami górskimi**. Ale nie jesteśmy zainteresowani ilościowym określaniem wyników testów dla każdego konkretnego pasma górskiego: chcemy tylko wiedzieć, czy **długość ciała wpływa na wyniki testów** i chcemy po prostu **kontrolować zmienność pochodzącą z pasm górskich**. Powinniśmy więc użyćmodelu mieszanego z pasmem górskim jako efektem losowym. dopiero takie rozwiązanie pozwoli nam na uwzględnienie korelacji między obserwacjami w danej grupie (paśmie górskim), zmniejszymy liczbę parametrów naszego modelu i pozbędziemy się problemu **wielokrotnym porównań** (multiple comparisons).
+
+```{r}
+mixed.lmer <- lmer(testScore ~ bodyLength2 + (1|mountainRange), data = dragons)
+summary(mixed.lmer)
+```
+
+```{r}
+mixed.lmer2 <- gamlss(formula = testScore ~ bodyLength2 + re(random = ~1|mountainRange), data = dragons)
+summary(mixed.lmer2)
+```
+
+Sprawdźmy dopasowanie nowego modelu:
+
+```{r}
+plot(mixed.lmer2)
+```
+
+Efekty losowe mogą być:
+
+ - **krzyżowe** (crossed):
+
+Pomyśl na przykład o naszym badaniu, w którym monitorujesz smoki (obiekt) w różnych pasmach górskich (kontekst) i wyobraź sobie, że zbieramy wiele obserwacji każdego smoka, wykonując test wiele razy. Ponieważ nasze smoki potrafią latać, łatwo sobie wyobrazić, że możemy obserwować tego samego smoka w różnych pasmach górskich, ale także, że możemy nie zobaczyć wszystkich smoków odwiedzających wszystkie pasma górskie. Dlatego możemy potencjalnie obserwować każdego smoka w każdym łańcuchu górskim (krzyżowe) lub przynajmniej obserwować niektóre smoki w niektórych pasmach górskich (częściowo krzyżowe). Następnie dopasowalibyśmy tożsamość smoka i pasma górskiego jako (częściowo) skrzyżowane losowe efekty.
+
+ - **zagnieżdżone** (nested):
+
+Często zdarza się, że w grupach, które traktujemy jak efekt losowy mogą pojawic się podgrupy (a wnich kolejne). mamy wtedy do czyniena z efektem zagniezdżonym. Przykładem może być badanie, w którym mamy pacjentów z wielu miast, w kazdym mieście, kilka szpitali i w każdym szpitalu pacjentów z grupy kontrolnej i przyjmującej leki. Dodatkowo mogliśmy zebrać kilka pomiarów od kazdego pacjenta.
+
+Spójrzmy na kolejny aspekt naszego badania: zebraliśmy dane o smokach nie tylko w wielu pasmach górskich, ale także w kilku miejscach w tych pasmach górskich (zmienna `site`).
+
+Nasza zmienna `site` jest czynnikiem trójpoziomowym, z poziomami nazywanymi `a`, `b` i `c`. Zagnieżdżenie obszaru w paśmie górskim jest domniemane - nasze stanowiska są bez znaczenia bez przypisania ich do określonych pasm górskich, tj. Nie ma nic, co łączy stanowisko `b` pasma górskiego `Bavarian` z obszarem `b` pasma górskiego `Central`. Aby uniknąć przyszłych nieporozumień, powinniśmy utworzyć nową zmienną, która jest jawnie zagnieżdżona:
+
+```{r}
+dragons <- within(dragons, sample <- factor(mountainRange:site))
+```
+
+```{r}
+mixed.WRONG <- lmer(testScore ~ bodyLength2 + (1|mountainRange) + (1|site), data = dragons) # traktuje dwa efekty losowe jako krzyżowe
+summary(mixed.WRONG)
+```
+
+```{r}
+mixed.lmer3 <- lmer(testScore ~ bodyLength2 + (1|mountainRange) + (1|sample), data = dragons) # kod jest taki sam, jednakże zagniezdżenie zostaje uwzględnione
+summary(mixed.lmer3)
+```
+
+Zwizualizujmy nowe wyniki:
+
+```{r}
+ggplot(dragons, aes(x = bodyLength, y = testScore, colour = site)) +
+      facet_wrap(~ mountainRange, nrow = 2) +
+      geom_point(alpha = 0.5) +
+      theme_classic() +
+      geom_line(data = cbind(dragons, pred = predict(mixed.lmer3)), aes(y = pred), size = 1) +
+      theme(legend.position = "none",
+            panel.spacing = unit(2, "lines"))
+```
+
+Jak łatwo zauważyć wszystkie krzywe regresji są do siebie równoległe. Dzieje się tak dlatego, że do tej pory dopasowaliśmy tylko modele **random-intercept**. Model ten pozwala na zmianę punktu przecięcia na każdym poziomie efektów losowych, ale utrzymuje między nimi stałe nachylenie. Tak więc w naszym przypadku użycie tego modelu oznacza, że spodziewamy się, że smoki we wszystkich pasmach górskich będą wykazywać ten sam związek między długością ciała a inteligencją (stałe nachylenie), chociaż przyznajemy, że niektóre populacje mogą być mądrzejsze lub głupsze.
+
+W naukach przyrodniczych być może częściej zakładamy, że nie wszystkie populacje wykazywałyby dokładnie ten sam związek, na przykład, jeśli twoje populacje badawcze są bardzo daleko od siebie i mają pewne względnie ważne różnice środowiskowe, genetyczne itp. Dlatego często chcemy dopasować model **random-slope and random-intercept**. Być może smoki w bardzo zimnym i bardzo ciepłym paśmie górskim wyewoluowały różne formy ciała w celu zachowania ciepła i dlatego mogą być inteligentne, nawet jeśli są mniejsze niż przeciętne.
+
+```{r}
+mixed.ranslope <- lmer(testScore ~ bodyLength2 + (1 + bodyLength2|mountainRange/site), data = dragons) 
+summary(mixed.ranslope)
+```
+
+Zwizualizujmy wyniki:
+
+```{r}
+ggplot(dragons, aes(x = bodyLength, y = testScore, colour = site)) +
+      facet_wrap(~mountainRange, nrow = 2) +
+      geom_point(alpha = 0.5) +
+      theme_classic() +
+      geom_line(data = cbind(dragons, pred = predict(mixed.ranslope)), aes(y = pred), size = 1) + 
+      theme(legend.position = "none",
+            panel.spacing = unit(2, "lines"))
+```
+
+```{r}
+# mixed.ranslope2 <- gamlss(testScore ~ bodyLength2 + re(random = ~1 + bodyLength2|mountainRange) + re(random = ~1 + bodyLength2|sample), data = dragons) 
+# summary(mixed.ranslope2)
+```
+
