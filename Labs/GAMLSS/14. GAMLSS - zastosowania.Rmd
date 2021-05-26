@@ -102,7 +102,7 @@ Do modelowania uzyjemy następujących zmiennych:
 - R - miesięczny czynsz pomniejszony o obliczone lub szacowane koszty mediów
 - Fl - powierzchnia w $m^2$
 - A - rok budowy
-- H - dwupoziomowy współczynnik wskazujący, czy istnieje centralne ogrzewanie (1 - tak, 0 - nie)
+- H - dwupoziomowy współczynnik wskazujący, czy istnieje centralne ogrzewanie (0 - tak, 1 - nie)
 - loc - czynnik wskazujący, czy lokalizacja jest poniżej średniej (1), średnia (2) lub powyżej średniej (3)
 
 Zacznijmy od zbadania rozkładów zmiennych:
@@ -271,7 +271,15 @@ Oba modele dają dobre dopasowanie, wiec możemy zakonczyć analizę.
 
 ## Modele mieszane
 
-Za początek rozpatrzmy prosty przykład. Wyobraźmy sobie, że badamy zależność między ciśnieniem krwi, a paleniem papierosów. Zebraliśmy w każdej grupie $10$ pacjentów i od kazdego z nich pobraliśmy $5$ pomiarów w ciągu najbliższych 24 godzin. W klasycznym przypadku stworzylibyśmy nasz prosty model liniowy (t-test, ANOVA) gdzie predyktorem byłbaby zmienna mówiąca o tym czy dany pacjent pali czy nie, a zmienną objaśnianą byłoby ciśnienie. Zauważmy jednak, że eksperyment stworzony w ten sposób wprowadza dodatkową zmienną, a mianowicie ID pacjenta. Zauważmy, że kazde 5 próbek od danego pacjenta może być ze sobą skorelowane i każdy pacjent moze miec inny wyjściowy poziom ciśnienia. Informację tę należałoby uwzględnić w naszym modelu, jednakże nie interesuje nas dokładny wpływ każdego pacjenta (nie chcemy dodatkowej $\beta$ dla każdego pacjenta) jak to było w przypadku zmiennej mówiącej o paleniu. Zmianne mówiąca o paleniu jest w tym przypadku **efektem stałym** (fixed effect), a ID pacjenta jest **efektem losowym** (random efect). Model z obiema typami efektów nazwiemy **modelem mieszanym** (mixed model).
+Za początek rozpatrzmy prosty przykład. Wyobraźmy sobie, że badamy zależność między ciśnieniem krwi, a paleniem papierosów. Zebraliśmy w każdej grupie $10$ pacjentów i od kazdego z nich pobraliśmy $5$ pomiarów w ciągu najbliższych 24 godzin. W klasycznym przypadku stworzylibyśmy nasz prosty model liniowy (t-test, ANOVA) gdzie predyktorem byłbaby zmienna mówiąca o tym czy dany pacjent pali czy nie, a zmienną objaśnianą byłoby ciśnienie. Zauważmy jednak, że eksperyment stworzony w ten sposób wprowadza dodatkową zmienną, a mianowicie ID pacjenta. Zauważmy, że kazde 5 próbek od danego pacjenta może być ze sobą skorelowane i każdy pacjent moze miec inny wyjściowy poziom ciśnienia. Informację tę należałoby uwzględnić w naszym modelu, jednakże nie interesuje nas dokładny wpływ każdego pacjenta (nie chcemy dodatkowej $\beta$ dla każdego pacjenta) jak to było w przypadku zmiennej mówiącej o paleniu. Zmianne mówiąca o paleniu jest w tym przypadku **efektem stałym** (fixed effect), a ID pacjenta jest **efektem losowym** (random efect). Model z obiema typami efektów nazwiemy **modelem mieszanym** (mixed model). Klasycznym rozszerzeniem GLM są GLMM czyli **Uogólnione mieszane modele liniowe**:
+
+$$
+\left\{\begin{array}{l}
+y|X \sim O E F(\mu(\theta), \phi) \\
+g(\mu)=\eta=X \beta + Zu\\
+u \sim N(0, G)
+\end{array}\right.
+$$
 
 Zmienna, która traktowana jest jako efekt stały w jednym modelu, traktowana może być jako efekt losowy w innym, dlatego też nalezy zastanowić się nad konstrukcją modelu w zalezności od tego jak skonstruowany był eksperyment i to na jakie pytanie chcemy odpowiedzieć. O efektach losowych możemy mysleć jak o efektach dla konkretnych podgrup, z większej możliwej liczby grup z całej populacji (mamy kilku pacjentów z większej ilości), gdzie efekty te nie są istotne do określenia w naszej analize.
 
@@ -343,11 +351,11 @@ plot(mixed.lmer2)
 
 Efekty losowe mogą być:
 
- - **krzyżowe** (crossed):
+- **krzyżowe** (crossed):
 
 Pomyśl na przykład o naszym badaniu, w którym monitorujesz smoki (obiekt) w różnych pasmach górskich (kontekst) i wyobraź sobie, że zbieramy wiele obserwacji każdego smoka, wykonując test wiele razy. Ponieważ nasze smoki potrafią latać, łatwo sobie wyobrazić, że możemy obserwować tego samego smoka w różnych pasmach górskich, ale także, że możemy nie zobaczyć wszystkich smoków odwiedzających wszystkie pasma górskie. Dlatego możemy potencjalnie obserwować każdego smoka w każdym łańcuchu górskim (krzyżowe) lub przynajmniej obserwować niektóre smoki w niektórych pasmach górskich (częściowo krzyżowe). Następnie dopasowalibyśmy tożsamość smoka i pasma górskiego jako (częściowo) skrzyżowane losowe efekty.
 
- - **zagnieżdżone** (nested):
+- **zagnieżdżone** (nested):
 
 Często zdarza się, że w grupach, które traktujemy jak efekt losowy mogą pojawic się podgrupy (a wnich kolejne). mamy wtedy do czyniena z efektem zagniezdżonym. Przykładem może być badanie, w którym mamy pacjentów z wielu miast, w kazdym mieście, kilka szpitali i w każdym szpitalu pacjentów z grupy kontrolnej i przyjmującej leki. Dodatkowo mogliśmy zebrać kilka pomiarów od kazdego pacjenta.
 
@@ -373,12 +381,12 @@ Zwizualizujmy nowe wyniki:
 
 ```{r}
 ggplot(dragons, aes(x = bodyLength, y = testScore, colour = site)) +
-      facet_wrap(~ mountainRange, nrow = 2) +
-      geom_point(alpha = 0.5) +
-      theme_classic() +
-      geom_line(data = cbind(dragons, pred = predict(mixed.lmer3)), aes(y = pred), size = 1) +
-      theme(legend.position = "none",
-            panel.spacing = unit(2, "lines"))
+  facet_wrap(~ mountainRange, nrow = 2) +
+  geom_point(alpha = 0.5) +
+  theme_classic() +
+  geom_line(data = cbind(dragons, pred = predict(mixed.lmer3)), aes(y = pred), size = 1) +
+  theme(legend.position = "none",
+        panel.spacing = unit(2, "lines"))
 ```
 
 Jak łatwo zauważyć wszystkie krzywe regresji są do siebie równoległe. Dzieje się tak dlatego, że do tej pory dopasowaliśmy tylko modele **random-intercept**. Model ten pozwala na zmianę punktu przecięcia na każdym poziomie efektów losowych, ale utrzymuje między nimi stałe nachylenie. Tak więc w naszym przypadku użycie tego modelu oznacza, że spodziewamy się, że smoki we wszystkich pasmach górskich będą wykazywać ten sam związek między długością ciała a inteligencją (stałe nachylenie), chociaż przyznajemy, że niektóre populacje mogą być mądrzejsze lub głupsze.
@@ -394,16 +402,182 @@ Zwizualizujmy wyniki:
 
 ```{r}
 ggplot(dragons, aes(x = bodyLength, y = testScore, colour = site)) +
-      facet_wrap(~mountainRange, nrow = 2) +
-      geom_point(alpha = 0.5) +
-      theme_classic() +
-      geom_line(data = cbind(dragons, pred = predict(mixed.ranslope)), aes(y = pred), size = 1) + 
-      theme(legend.position = "none",
-            panel.spacing = unit(2, "lines"))
+  facet_wrap(~mountainRange, nrow = 2) +
+  geom_point(alpha = 0.5) +
+  theme_classic() +
+  geom_line(data = cbind(dragons, pred = predict(mixed.ranslope)), aes(y = pred), size = 1) + 
+  theme(legend.position = "none",
+        panel.spacing = unit(2, "lines"))
 ```
 
 ```{r}
 # mixed.ranslope2 <- gamlss(testScore ~ bodyLength2 + re(random = ~1 + bodyLength2|mountainRange) + re(random = ~1 + bodyLength2|sample), data = dragons) 
 # summary(mixed.ranslope2)
+```
+
+## Mieszaniny rozkładów
+
+Załózmy, ze zmienna losowa $Y$ pochodzi z komponentu $k$ z gęstością $f_k(y)$ z prawdopodobieństwem $\pi_k$, $k = 1,2,...,K$. Wtedy rozkład (marginalny) zmiennej $Y$ dany jest wzorem:
+
+$$
+f_Y(y) = \sum_{k=1}^K \pi_k f_k(y)
+$$
+gdzie $0\leq \pi_k \leq 1$ i $\sum \pi_k = 1$. W ogólnym przypadku gestość $f_k(y)$ może zalezeć od parametrów $\theta_k$ oraz zmiennych objasniających $X_k$:
+
+$$
+f_k(y) = f_k(y|\theta_k,X_k)
+$$
+Podobnie $f_Y(y)$ zależy od parametru $\psi = (\theta, \pi)$, gdzie $\theta = (\theta1, ..., \theta_K)$ i $\pi = (\pi_1, ..., \pi_K)$:
+
+$$
+f_{Y}(y \mid \psi, X)=\sum_{k=1}^{K} \psi_{k} f_{k}\left(y \mid \theta_{k}, X_{k}\right)
+$$
+Rozpatrzmy na początek prosty przykład **estymacji gęstości**. Potrzebny nam bedzie dodatkowy pakiet `gamlss.mx` umożliwiającey dopasowanie **mieszaniny rozkłądów**. Fukcja `gamlssMX` odpowiada za dopasowanie modelu. Arument `K` pozwala na zdefiniowanie ilości użytych rozkładów. 
+
+```{r}
+library(gamlss.mx)
+library(MASS)
+data(enzyme)
+
+truehist(enzyme$act, h = 0.1)
+m1 <- gamlssMX(act ~ 1, data = enzyme, family = NO, K = 2)
+m2 <- gamlssMX(act ~ 1, data = enzyme, family = GA, K = 2)
+m3 <- gamlssMX(act ~ 1, data = enzyme, family = RG, K = 2)
+m4 <- gamlssMX(act ~ 1, data = enzyme, family = c(NO, GA), K = 2)
+m5 <- gamlssMX(act ~ 1, data = enzyme, family = c(NO, RG), K = 2)
+AIC(m1, m2, m3, m4, m5)
+```
+
+AIC mówi, że najlepszy model to mieszanina 2 rozkładów **Reverse Gumbel**. Algorytm E-M potrafi utknać w minimum lokalnym, awy wykluczyć taką mozliwość możemy powtórzyć proces kilka razy z różnym punktem startu:
+
+```{r}
+set.seed(1436)
+m3 <- gamlssMXfits(n = 10, act ~ 1, data = enzyme, family = RG, K = 2)
+```
+
+Sprawdźmy teraz podsumowanie naszego modelu:
+
+```{r}
+m3
+
+truehist(enzyme$act, h = 0.1)
+fyRG <- dMX(y = seq(0, 3, 0.01), mu = list(1.127, 0.1557), sigma = list(exp(-1.091),
+                                                                        exp(-2.641)), pi = list(0.376, 0.624), family = list("RG", "RG"))
+lines(seq(0, 3, 0.01), fyRG, col = "red", lty = 1)
+lines(density(enzyme$act, width = "SJ-dpi"), lty = 2)
+```
+
+Przejdźmy teraz do danych wielowymiarowych. Dane `geyser` zawierają informacje o czasie oczekiwania na erupcję oraz jej długość.
+
+```{r}
+data(geyser)
+set.seed(1581)
+mNO <- gamlssMX(waiting ~ 1, data = geyser, family = NO, K = 2)
+mGA <- gamlssMX(waiting ~ 1, data = geyser, family = GA, K = 2)
+mRG <- gamlssMX(waiting ~ 1, data = geyser, family = RG, K = 2)
+mGU <- gamlssMX(waiting ~ 1, data = geyser, family = GU, K = 2)
+mLO <- gamlssMX(waiting ~ 1, data = geyser, family = LO, K = 2)
+mIG <- gamlssMX(waiting ~ 1, data = geyser, family = IG, K = 2)
+AIC(mNO, mGA, mRG, mGU, mLO, mIG)
+```
+
+Najlepszy okazuje się być model z mieszaniną rozkładów Inverse Gamma:
+
+```{r}
+mIG
+
+truehist(geyser$waiting, h = 2)
+fyIG <- dMX(y = seq(39, 115, 1), mu = list(exp(4.393), exp(4.006)),
+            sigma = list(exp(-4.642), exp(-4.304)),
+            pi = list(0.6695835, 0.3304165),
+            family = list("IG", "IG"))
+lines(seq(39, 115, 1), fyIG, col = "red", lty = 1)
+lines(density(geyser$waiting, width = "SJ-dpi"), lty = 2)
+```
+
+W kolejnym kroku sprawdzimy czy dopasowanie naszego modelu nie będzie lepsze jeśli jako predyktora nie uzyjemy czasu poprzeniej erupcji:
+
+```{r}
+geyser2 <- matrix(0, ncol = 2, nrow = 298)
+geyser2[, 1] <- geyser$waiting[-1]
+geyser2[, 2] <- geyser$duration[-299]
+colnames(geyser2) <- c("waiting", "duration")
+geyser2 <- data.frame(geyser2)
+set.seed(1581)
+mNO1 <- gamlssMX(waiting ~ 1, data = geyser2, family = NO, K = 2)
+mIG1 <- gamlssMX(waiting ~ 1, data = geyser2, family = IG, K = 2)
+mNO2 <- gamlssMX(waiting ~ 1, pi.formula = ~duration, data = geyser2, family = NO, K = 2)
+mIG2 <- gamlssMX(waiting ~ 1, pi.formula = ~duration, data = geyser2, family = IG, K = 2)
+mNO3 <- gamlssMX(waiting ~ duration, pi.formula = ~1, data = geyser2, family = NO, K = 2)
+mIG3 <- gamlssMX(waiting ~ duration, pi.formula = ~1, data = geyser2, family = IG, K = 2)
+mNO4 <- gamlssMX(waiting ~ duration, pi.formula = ~duration, data = geyser2, family = NO, K = 2)
+mIG4 <- gamlssMX(waiting ~ duration, pi.formula = ~duration, data = geyser2, family = IG, K = 2)
+AIC(mNO1, mNO2, mNO3, mNO4, mIG1, mIG2, mIG3, mIG4)
+```
+
+Sprawdźmy dopasowanie najlepszego modelu:
+
+```{r}
+mIG4
+
+op <- par(mfrow = c(1, 2))
+plot(waiting ~ duration, data = geyser2, xlab = "previous duration",
+     ylab = "waiting time", main = "(a)")
+lines(fitted(mIG4$models[[1]])[order(geyser2$duration)] ~
+        geyser2$duration[order(geyser2$duration)],
+      col = "dark green", lty = 3)
+lines(fitted(mIG4$models[[2]])[order(geyser2$duration)] ~
+        geyser2$duration[order(geyser2$duration)],
+      col = "red", lty = 4)
+plot(mIG4$prob[, 1][order(duration)] ~ duration[order(duration)],
+     data = geyser2, xlab = "previous duration", ylab = "probability of component 2",
+     main = "(b)")
+lines(mIG4$prob[, 1][order(duration)] ~ duration[order(duration)],
+      data = geyser2)
+lines(mIG4$prob[, 1][order(duration)] ~ duration[order(duration)],
+      data = geyser2)
+par(op)
+```
+
+Zobaczmy także dopasowany rozkład w 3D
+
+```{r}
+grid <- expand.grid(duration = seq(1.5, 5.5, 0.1), waiting = seq(40,
+                                                                 110, 0.5))
+etapi <- 10.19069 - 3.132215 * grid$duration
+etamu1 <- 4.09618 + 0.07007 * grid$duration
+etamu2 <- 3.6312 + 0.1935 * grid$duration
+pp <- (exp(etapi)/(1 + exp(etapi)))
+grid$f1 <- dMX(y = grid$waiting, mu = list(exp(etamu1), exp(etamu2)),
+               sigma = list(exp(-4.807), exp(-4.351)), pi = list(1 - pp, pp),
+               family = list("IG", "IG"))
+library(lattice)
+wireframe(f1 ~ duration * waiting, data = grid, aspect = c(1,
+                                                           0.5), drape = TRUE)
+```
+
+W kolejnym kroku moglibyśmy sprawdzić czy predyktor nieliniowy nie byłby lepszym rozwiazaniem:
+
+```{r}
+mIG5 <- gamlss(waiting ~ duration, sigma.formula = ~duration,
+               data = geyser2, family = IG, trace = FALSE)
+mIG6 <- gamlss(waiting ~ cs(duration), sigma.formula = ~duration,
+               data = geyser2, family = IG, trace = FALSE)
+mIG7 <- gamlss(waiting ~ cs(duration), sigma.formula = ~cs(duration),
+               data = geyser2, family = IG, trace = FALSE)
+mIG8 <- gamlss(waiting ~ cs(duration), sigma.formula = ~1, data = geyser2,
+               family = IG, trace = FALSE)
+AIC(mIG4, mIG5, mIG6, mIG7, mIG8)
+
+plot(waiting ~ duration, data = geyser2, xlab = "previous duration",
+     ylab = "waiting time")
+lines(fitted(mIG4$models[[1]])[order(geyser2$duration)] ~
+        geyser2$duration[order(geyser2$duration)],
+      col = "green", lty = 3)
+lines(fitted(mIG4$models[[2]])[order(geyser2$duration)] ~
+        geyser2$duration[order(geyser2$duration)],
+      col = "red", lty = 4)
+lines(fitted(mIG6)[order(duration)] ~ duration[order(duration)],
+      data = geyser2, col = "blue", lty = 1)
 ```
 
