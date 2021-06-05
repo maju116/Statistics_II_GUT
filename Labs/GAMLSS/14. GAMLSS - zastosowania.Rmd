@@ -297,7 +297,7 @@ Klasycznym podejściem byłoby zaczęcie od modelu regresji liniowej:
 ```{r}
 basic.lm <- gamlss(formula = testScore ~ bodyLength2, data = dragons)
 summary(basic.lm)
-ggplot(dragons, aes(x = bodyLength, y = testScore)) +
+ggplot(dragons, aes(x = bodyLength2, y = testScore)) +
   theme_bw() +
   geom_point() +
   geom_smooth(method = "lm")
@@ -357,7 +357,7 @@ Pomyśl na przykład o naszym badaniu, w którym monitorujesz smoki (obiekt) w r
 
 - **zagnieżdżone** (nested):
 
-Często zdarza się, że w grupach, które traktujemy jak efekt losowy mogą pojawic się podgrupy (a wnich kolejne). mamy wtedy do czyniena z efektem zagniezdżonym. Przykładem może być badanie, w którym mamy pacjentów z wielu miast, w kazdym mieście, kilka szpitali i w każdym szpitalu pacjentów z grupy kontrolnej i przyjmującej leki. Dodatkowo mogliśmy zebrać kilka pomiarów od kazdego pacjenta.
+Często zdarza się, że w grupach, które traktujemy jak efekt losowy mogą pojawic się podgrupy (a w nich kolejne). mamy wtedy do czyniena z efektem zagniezdżonym. Przykładem może być badanie, w którym mamy pacjentów z wielu miast, w kazdym mieście, kilka szpitali i w każdym szpitalu pacjentów z grupy kontrolnej i przyjmującej leki. Dodatkowo mogliśmy zebrać kilka pomiarów od kazdego pacjenta.
 
 Spójrzmy na kolejny aspekt naszego badania: zebraliśmy dane o smokach nie tylko w wielu pasmach górskich, ale także w kilku miejscach w tych pasmach górskich (zmienna `site`).
 
@@ -408,11 +408,6 @@ ggplot(dragons, aes(x = bodyLength, y = testScore, colour = site)) +
   geom_line(data = cbind(dragons, pred = predict(mixed.ranslope)), aes(y = pred), size = 1) + 
   theme(legend.position = "none",
         panel.spacing = unit(2, "lines"))
-```
-
-```{r}
-# mixed.ranslope2 <- gamlss(testScore ~ bodyLength2 + re(random = ~1 + bodyLength2|mountainRange) + re(random = ~1 + bodyLength2|sample), data = dragons) 
-# summary(mixed.ranslope2)
 ```
 
 ## Mieszaniny rozkładów
