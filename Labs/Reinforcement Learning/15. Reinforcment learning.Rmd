@@ -107,6 +107,26 @@ TicTacToe <- R6Class(
         stop("Non-empty cell selected!")
       }
     },
+    apply_q_learning = function(winner) {
+      if (private$player1$get_strategy() == "q") {
+        if (winner == "tie") {
+          private$player1$learn_q(0.5)
+        } else if (winner == private$player1$get_name()) {
+          private$player1$learn_q(10)
+        } else {
+          private$player1$learn_q(0)
+        }
+      }
+      if (private$player2$get_strategy() == "q") {
+        if (winner == "tie") {
+          private$player2$learn_q(0.5)
+        } else if (winner == private$player2$get_name()) {
+          private$player2$learn_q(10)
+        } else {
+          private$player2$learn_q(0)
+        }
+      }
+    },
     restart_game = function(winner, print = FALSE) {
       if (print) print(paste("Game over. Result:", winner))
       private$results <- c(private$results, winner)
@@ -121,6 +141,7 @@ TicTacToe <- R6Class(
           winner <- private$check_for_game_end()
           if (!is.na(winner)) {
             self$restart_game(winner, print)
+            self$apply_q_learning(winner)
             break
           }
           move2 <- private$player2$move(private$current_state)
@@ -128,6 +149,7 @@ TicTacToe <- R6Class(
           winner <- private$check_for_game_end()
           if (!is.na(winner)) {
             self$restart_game(winner, print)
+            self$apply_q_learning(winner)
             break
           }
         }
@@ -188,11 +210,16 @@ oraz klasy, która odpowiadać będzie za ruchy gracza:
 TicTacToePlayer <- R6Class(
   classname = "TicTacToePlayer",
   public = list(
-    initialize = function(name, symbol, strategy = "random") {
+    initialize = function(name, symbol, is_player1, strategy = "random",
+                          alpha = 0.99, gamma = 0.975, beta = 0.8) {
       stopifnot(nchar(symbol) == 1)
-      private$name = name
-      private$symbol = as.character(symbol)
-      private$strategy = strategy
+      private$name <- name
+      private$symbol <- as.character(symbol)
+      private$strategy <- strategy
+      private$player_value <- if (is_player1) 1 else -1
+      private$alpha <- alpha
+      private$gamma <- gamma
+      private$beta <- beta
     },
     get_name = function() {
       private$name
@@ -203,29 +230,116 @@ TicTacToePlayer <- R6Class(
     get_strategy = function() {
       private$strategy
     },
-    move = function(current_state) {
+    get_q_table = function() {
+      private$q_table
+    },
+    load_q_table = function(path) {
+      private$q_table <- read_rds(path)
+    },
+    move = function(state) {
       if (private$strategy == "random") {
-        private$move_random(current_state)
+        private$move_random(state)
+      } else if (private$strategy == "q") {
+        private$move_q(state)
       }
+    },
+    learn_q = function(reward) {
+      alpha <- private$alpha
+      gamma <- private$gamma
+      private$q_table[[
+        private$create_state_id(private$previous_state)]][[
+          private$create_state_id(private$current_state)]]$q <- reward
+      private$previous_state <- NULL
+      
+      for (state_id in rev(names(private$q_table))) {
+        actions <- private$q_table[[state_id]]
+        for (next_move_id in names(actions)) {
+          next_move_actions <- private$q_table[[next_move_id]]
+          if (!is.null(next_move_actions)) {
+            best_next_q <- next_move_actions %>% map_dbl(~ .$q) %>% max()
+            actions[[next_move_id]]$q <- (1 - alpha) * actions[[next_move_id]]$q +
+              gamma * alpha * best_next_q
+          }
+          private$q_table[[state_id]] <- actions
+        }
+      }
+      private$alpha <- alpha * gamma
     }
   ),
   private = list(
     name = NULL,
     symbol = NULL,
     strategy = NULL,
-    get_size = function(current_state) {
-      sqrt(length(current_state))
+    player_value = NULL,
+    alpha = 0.15,
+    gamma = 0.99,
+    beta = 0.6,
+    q_table = list(),
+    current_state = NULL,
+    previous_state = NULL,
+    get_size = function(state) {
+      sqrt(length(state))
     },
-    find_empty_cells = function(current_state) {
-      which(current_state == 0)
+    find_empty_cells = function(state) {
+      which(state == 0)
     },
-    move_random = function(current_state) {
-      empty_cells = private$find_empty_cells(current_state)
+    sample_from_cells = function(empty_cells) {
       if (length(empty_cells) > 1) {
         sample(empty_cells, size = 1)
       } else {
         empty_cells
       }
+    },
+    move_random = function(state) {
+      empty_cells = private$find_empty_cells(state)
+      private$sample_from_cells(empty_cells)
+    },
+    create_state_id = function(state, action = NA) {
+      if (!is.na(action)) {
+        state[action] <- private$player_value
+      }
+      paste0(state, collapse = "")
+    },
+    compare_state_ids = function(state1, state2) {
+      state1_clean = gsub("-", "", state1)
+      state2_clean = gsub("-", "", state2)
+      which(strsplit(state1_clean, "")[[1]] != strsplit(state2_clean, "")[[1]])
+    },
+    initialize_q_table_for_state = function(state) {
+      actions <- list()
+      empty_cells <- private$find_empty_cells(state)
+      for (cell in empty_cells) {
+        actions[[private$create_state_id(state, cell)]] <- list(action = cell, q = private$beta)
+      }
+      state_id <- private$create_state_id(state)
+      private$q_table[[state_id]] <- actions
+    },
+    move_q = function(state) {
+      state_id <- private$create_state_id(state)
+      if (!is.null(private$previous_state)) {
+        current_state_id <- private$create_state_id(private$current_state)
+        actions <- private$q_table[[current_state_id]]
+        if (!(state_id %in% names(actions))) {
+          actions[[state_id]] <- list(action = private$compare_state_ids(state_id, current_state_id),
+                                      q =  private$beta)
+        }
+      }
+      
+      # Losowanie najoptymalniejszej akcji
+      state_in_q_table <- state_id %in% names(private$q_table)
+      if (!state_in_q_table) {
+        private$initialize_q_table_for_state(state)
+      }
+      actions <- private$q_table[[state_id]]
+      best_q <- actions %>% map_dbl(~ .$q) %>% max()
+      best_actions <- actions %>% keep(~ .$q == best_q) %>% map(~ .$action) %>% unlist()
+      best_action <- private$sample_from_cells(best_actions)
+      # Update współrzędnych
+      private$previous_state <- state
+      state[best_action] <- private$player_value
+      private$current_state <- state
+      # Wynik Q-learningu
+      best_action
     }
   )
 )
@@ -234,8 +348,8 @@ TicTacToePlayer <- R6Class(
 Zacznijmy od wizualizacji wyników dla graczy losowych:
 
 ```{r}
-p1 <- TicTacToePlayer$new(name = "p1", symbol = "x", strategy = "random")
-p2 <- TicTacToePlayer$new(name = "p2", symbol = "o", strategy = "random")
+p1 <- TicTacToePlayer$new(name = "p1", symbol = "x", is_player1 = TRUE, strategy = "random")
+p2 <- TicTacToePlayer$new(name = "p2", symbol = "o", is_player1 = FALSE, strategy = "random")
 random_vs_random <- TicTacToe$new(size = 3L, p1, p2)
 rounds <- 1000
 random_vs_random$play(rounds)
@@ -248,6 +362,26 @@ random_vs_random_results <- tibble(
   gather(key = "winner", value = "wins percentage", -round)
 
 ggplotly(ggplot(random_vs_random_results, aes(round, `wins percentage`)) +
-  theme_bw() + geom_line(aes(color = winner)))
+           theme_bw() + geom_line(aes(color = winner)))
 ```
 
+A także dla Q-learningu
+
+```{r}
+p1 <- TicTacToePlayer$new(name = "p1", symbol = "x", is_player1 = TRUE, strategy = "random")
+p2 <- TicTacToePlayer$new(name = "p2", symbol = "o", is_player1 = FALSE, strategy = "q")
+p2$load_q_table("q_table_10000.RDS")
+random_vs_q <- TicTacToe$new(size = 3L, p1, p2)
+rounds <- 1000
+random_vs_q$play(rounds)
+random_vs_q_results <- tibble(
+  round = 1:rounds,
+  winner = random_vs_q$get_results(),
+  value = 1) %>%
+  spread(winner, value, fill = 0) %>%
+  mutate_at(vars(-round), list(~ cumsum(.) / round)) %>%
+  gather(key = "winner", value = "wins percentage", -round)
+
+ggplotly(ggplot(random_vs_q_results, aes(round, `wins percentage`)) +
+           theme_bw() + geom_line(aes(color = winner)))
+```
