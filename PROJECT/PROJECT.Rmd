@@ -1,7 +1,7 @@
 ---
 title: "STATYSTYKA II - PROJEKT"
 author: "Michał Maj"
-date: "3/29/2021"
+date: "3/08/2022"
 output: pdf_document
 ---
 
