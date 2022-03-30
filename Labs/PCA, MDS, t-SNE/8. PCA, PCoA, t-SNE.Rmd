@@ -103,7 +103,7 @@ $$
 W postaci uogólnionej układ ten zapiszemy:
 
 $$
-Y_{l}=w_{1} X_{1l}+w_{2} X_{2l}+\cdots+w_{p l} X_{p}=\sum_{j=1}^{p} w_{j l} X_{j}
+Y_{l}=w_{1 l} X_{1}+w_{2 l} X_{2}+\cdots+w_{p l} X_{p}=\sum_{j=1}^{p} w_{j l} X_{j}
 $$
 
 Nowe, przetworzone zmienne $Y_l$ noszą nazwę **głównych składowych** (ang. principal components) zmiennych $X_j$ lub też zmiennych składowych, zaś współczynniki $w_{jl}$ nazywają się **ładunkami składowymi** (ang. component loadings). Są one **nieskorelowane między sobą** (ortogonalne) i unormowane (suma kwadratów współczynników danej kombinacji $w_{jl}$ jest równa jeden), a suma wariancji składowych $Y_l$ jest równa ogólnej wariancji zmiennych $X_j$.
