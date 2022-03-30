@@ -133,7 +133,7 @@ print(paste("Suma kwardratów reszt dla zb. treningowego:", sum((gene_data_train
 print(paste("Suma kwardratów reszt dla zb. testowego:", sum((gene_data_test_y - gene_data_ridge_predicted_test)^2)))
 ```
 
-Regresja grzbietowa jest przykładem **regularyzacji normą L^q** gdzie $q=2$:
+Regresja grzbietowa jest przykładem **regularyzacji normą $L^q$** gdzie $q=2$:
 
 $$
 \hat{\beta} = agrmin_{\beta} (-\ell(\beta) + \lambda\sum_{i=1}^p |\beta_p|^q)

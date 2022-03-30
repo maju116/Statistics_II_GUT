@@ -103,7 +103,7 @@ $$
 W postaci uogólnionej układ ten zapiszemy:
 
 $$
-Y_{l}=w_{1}, X_{1l}+w_{2} X_{2l}+\cdots+w_{p l} X_{p}=\sum_{j=1}^{p} w_{j l} X_{j}
+Y_{l}=w_{1} X_{1l}+w_{2} X_{2l}+\cdots+w_{p l} X_{p}=\sum_{j=1}^{p} w_{j l} X_{j}
 $$
 
 Nowe, przetworzone zmienne $Y_l$ noszą nazwę **głównych składowych** (ang. principal components) zmiennych $X_j$ lub też zmiennych składowych, zaś współczynniki $w_{jl}$ nazywają się **ładunkami składowymi** (ang. component loadings). Są one **nieskorelowane między sobą** (ortogonalne) i unormowane (suma kwadratów współczynników danej kombinacji $w_{jl}$ jest równa jeden), a suma wariancji składowych $Y_l$ jest równa ogólnej wariancji zmiennych $X_j$.
@@ -305,26 +305,13 @@ ggplot(data = mds.data, aes(x = PCo1, y = PCo2, label = Sample)) +
 Jak widać oba wykresy dają tę samą odpowiedź. sprawdźmy teraz co stanie się gdy użyjemy innej odległości. W genetyce czesto stosowana jest **Log Fold Change**:
 
 $$
-log_2FC(sample_1, sample_2) = |log_2(sample_1) - log_2(sample_2)|
+log_2FC(sample_1, sample_2) = mean(|log_2(sample_1) - log_2(sample_2)|)
 $$
-```{r}
-log2.data.matrix <- log2(gene_data)
 
-log2.distance.matrix <- matrix(0,
-  nrow=ncol(log2.data.matrix),
-  ncol=ncol(log2.data.matrix),
-  dimnames=list(colnames(log2.data.matrix),
-    colnames(log2.data.matrix)))
+```{r}
+log_2FC_dist <- function(x, y) mean(abs(log2(x) - log2(y)))
  
-log2.distance.matrix
- 
-for(i in 1:ncol(log2.distance.matrix)) {
-  for(j in 1:i) {
-    log2.distance.matrix[i, j] <-
-      mean(abs(log2.data.matrix[,i] - log2.data.matrix[,j]))
-  }
-}
-log2.distance.matrix
+log2.distance.matrix <- proxy::dist(gene_data, method = log_2FC_dist)
 
 mds2 <- cmdscale(as.dist(log2.distance.matrix), eig = TRUE, x.ret = TRUE)
  
