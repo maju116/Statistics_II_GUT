@@ -19,6 +19,6 @@ bin_model %>% compile(loss = 'binary_crossentropy',
 history <- bin_model %>% fit(x = bin_class_train_X,
                              y = bin_class_train_Y,
                              validation_data = list(bin_class_test_X, bin_class_test_Y),
-                             epochs = 10,
+                             epochs = 100,
                              batch_size = FLAGS$batch_size,
                              view_metrics = FALSE) # Don't generate plot in viewer

@@ -7,8 +7,6 @@ output: html_notebook
 ```{r packages}
 library(keras)
 library(tidyverse)
-library(tokenizers)
-library(stringr)
 ```
 
 **Rekurencyjne sieci neuronowe** mogą być używane do wielu różnych zadań, takich jak tłumaczenie z języka na język, prognozowanie szeregów czasowych, tłumaczenie tekstu mówionego i pisanego, generowanie tekstu / muzyki, klasyfikacja sekwencji / problemy z regresją. Zaczniemy od prostej analizy nastrojów (klasyfikacji). Wykorzystamy dane z Twittera:
@@ -25,7 +23,7 @@ Pierwszą rzeczą, którą musimy zrobić, jest zamiana zwykłego tekstu na toke
 tokenizer <- text_tokenizer(
   num_words = 20000, # Max number of unique words to keep
   filters = "!\"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n", # Signs to filter out from text
-  lower = TRUE, # Should everything be converted to lowercse
+  lower = TRUE, # Schould everything be converted to lowercse
   split = " ", # Token splitting character
   char_level = FALSE, # Should each sign be a token
   oov_token = NULL # Token to replace out-of-vocabulary words
@@ -105,200 +103,19 @@ Widzimy nadmierne dopasowanie, zamiast tego wypróbujmy teraz jednostki LSTM lub
 # Add LSTM layer with 15 units, recurrent dropout with 0.5 rate and don't forget to return sequences to LSTM on top
 # Add LSTM layer with 7 units, recurrent dropout with 0.5 rate
 # Add dense layer as output with 'sigmoid' activation
-model2 <- keras_model_sequential() %>%
-  layer_embedding(input_dim = 20000,
-                  output_dim = 128, # Represent each word in 128-dim space
-                  input_length = maxlen) %>%
-  layer_lstm(units = 15, recurrent_dropout = 0.5, return_sequences = TRUE) %>%
-  layer_lstm(units = 7, recurrent_dropout = 0.5) %>%
-  layer_dense(units = 1, activation = "sigmoid")
+model2 <- ___
 
 # 2, Comile the model
-model2 %>% compile(
-  optimizer = "rmsprop",
-  loss = "binary_crossentropy",
-  metrics = c("accuracy")
-)
+
 # 3. Fit the model
-history2 <- model2 %>% fit(
-  sentiment140_X_train,
-  sentiment140_Y_train,
-  epochs = 10,
-  batch_size = 128,
-  validation_split = 0.2
-)
+
 ```
 
 Teraz twoja kolej, użyj zestawu danych Stack Overflow, aby sklasyfikować każde pytanie w języku programowania:
 
 ```{r so_questions}
 load("data/stack_overflow.RData")
-```
 
-```{r so_questions2}
 # Ex. Using knowlege from previous chapters create model for stack overflow question tags classification.
-stack_overflow_Y <- stack_overflow_Y %>% to_categorical(20)
-
-tokenizer <- text_tokenizer(
-  num_words = 100000, # Max number of unique words to keep
-  filters = "!\"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n", # Signs to filter out from text
-  lower = TRUE, # Schould everything be converted to lowercse
-  split = " ", # Token splitting character
-  char_level = FALSE, # Should each sign be a token
-  oov_token = NULL # Token to replace out-of-vocabulary words
-)
-tokenizer %>% fit_text_tokenizer(stack_overflow_X)
-
-sequences <- texts_to_sequences(tokenizer, stack_overflow_X)
-
-maxlen <- 30
-sequences_pad <- pad_sequences(sequences, maxlen = maxlen)
-
-train_factor <- sample(1:nrow(sequences_pad), nrow(sequences_pad) * 0.8)
-stack_overflow_X_train <- sequences_pad[train_factor, ]
-stack_overflow_X_test <- sequences_pad[-train_factor, ]
-stack_overflow_Y_train <- stack_overflow_Y[train_factor, ]
-stack_overflow_Y_test <- stack_overflow_Y[-train_factor, ]
-
-model <- keras_model_sequential() %>%
-  layer_embedding(input_dim = 100000,
-                  output_dim = 300,
-                  input_length = maxlen) %>%
-  layer_lstm(units = 300, recurrent_dropout = 0.5, return_sequences = TRUE) %>%
-  layer_lstm(units = 150, recurrent_dropout = 0.5, return_sequences = TRUE) %>%
-  layer_lstm(units = 75, recurrent_dropout = 0.5) %>%
-  layer_dense(units = 20, activation = "softmax")
-
-model %>% compile(
-  optimizer = "adam",
-  loss = "categorical_crossentropy",
-  metrics = c("accuracy")
-)
-
-history <- model %>% fit(
-  stack_overflow_X_train,
-  stack_overflow_Y_train,
-  epochs = 10,
-  batch_size = 128,
-  validation_split = 0.2
-)
-```
-
-Zadanie klasyfikacji tekstu w bardzo prosty sposób możmey przekształcić w proces generowania. W pierwszej kolejności stwórzmy korpus, tym razem tokenem będzie pojedyncza litera.
-
-```{r text_generation}
-maxlen <- 40
-
-path <- get_file(
-  'nietzsche.txt', 
-  origin='https://s3.amazonaws.com/text-datasets/nietzsche.txt'
-  )
-
-text <- read_lines(path) %>%
-  str_to_lower() %>%
-  str_c(collapse = "\n") %>%
-  tokenize_characters(strip_non_alphanum = FALSE, simplify = TRUE)
-print(sprintf("corpus length: %d", length(text)))
-```
-
-Nastepnie musimy przygotować zbiór trenongowy i testowy:
-
-```{r}
-chars <- text %>%
-  unique() %>%
-  sort()
-
-dataset <- map(
-  seq(1, length(text) - maxlen - 1, by = 3), 
-  ~list(sentece = text[.x:(.x + maxlen - 1)], next_char = text[.x + maxlen])
-  )
-
-dataset <- transpose(dataset)
-
-x <- array(0, dim = c(length(dataset$sentece), maxlen, length(chars)))
-y <- array(0, dim = c(length(dataset$sentece), length(chars)))
-
-for(i in 1:length(dataset$sentece)){
-  
-  x[i,,] <- sapply(chars, function(x){
-    as.integer(x == dataset$sentece[[i]])
-  })
-  
-  y[i,] <- as.integer(chars == dataset$next_char[[i]])
-  
-}
-```
-
-Zbudować model:
-
-```{r}
-model <- keras_model_sequential() %>%
-  layer_lstm(128, input_shape = c(maxlen, length(chars))) %>%
-  layer_dense(length(chars)) %>%
-  layer_activation("softmax")
-
-optimizer <- optimizer_rmsprop(lr = 0.01)
-
-model %>% compile(
-  loss = "categorical_crossentropy", 
-  optimizer = optimizer
-)
-```
-
-Oraz go wytrenować:
-
-```{r}
-sample_mod <- function(preds, temperature = 1){
-  preds <- log(preds)/temperature
-  exp_preds <- exp(preds)
-  preds <- exp_preds/sum(exp(preds))
-  
-  rmultinom(1, 1, preds) %>% 
-    as.integer() %>%
-    which.max()
-}
-
-on_epoch_end <- function(epoch, logs) {
-  
-  cat(sprintf("epoch: %02d ---------------\n\n", epoch))
-  
-  for(diversity in c(0.2, 0.5, 1, 1.2)){
-    
-    cat(sprintf("diversity: %f ---------------\n\n", diversity))
-    
-    start_index <- sample(1:(length(text) - maxlen), size = 1)
-    sentence <- text[start_index:(start_index + maxlen - 1)]
-    generated <- ""
-    
-    for(i in 1:400){
-      
-      x <- sapply(chars, function(x){
-        as.integer(x == sentence)
-      })
-      x <- array_reshape(x, c(1, dim(x)))
-      
-      preds <- predict(model, x)
-      next_index <- sample_mod(preds, diversity)
-      next_char <- chars[next_index]
-      
-      generated <- str_c(generated, next_char, collapse = "")
-      sentence <- c(sentence[-1], next_char)
-      
-    }
-    
-    cat(generated)
-    cat("\n\n")
-    
-  }
-}
-
-print_callback <- callback_lambda(on_epoch_end = on_epoch_end)
-
-model %>% fit(
-  x, y,
-  batch_size = 128,
-  epochs = 10,
-  callbacks = print_callback
-)
 ```
 

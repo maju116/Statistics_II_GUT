@@ -68,7 +68,7 @@ xy_axis <- data.frame(x = expand.grid(1:28, 28:1)[, 1],
                       y = expand.grid(1:28, 28:1)[, 2])
 plot_theme <- list(
   raster = geom_raster(hjust = 0, vjust = 0),
-  gradient_fill = scale_fill_gradient(low = "white", high = "black", guide = FALSE),
+  gradient_fill = scale_fill_gradient(low = "white", high = "black", guide = "none"),
   theme = theme_void()
 )
 
@@ -210,42 +210,5 @@ Czas na stworzenie bardziej zaawansowanej wersji tego modelu:
 # tensorboard - save logs to tensorboard in "tensorboard" folder - callback_tensorboard
 
 # 4. Evaluate the model on test set
-
-fmnist_model2 <- keras_model_sequential() %>%
-  layer_conv_2d(
-    filter = 64, kernel_size = c(3, 3), padding = "same",
-    input_shape = c(28, 28, 1), activation = "linear") %>%
-  layer_batch_normalization() %>%
-  layer_activation("relu") %>%
-  layer_max_pooling_2d(pool_size = c(2, 2), strides = c(2, 2)) %>%
-  layer_dropout(0.25) %>%
-  layer_flatten() %>%
-  layer_dense(512, activation = "relu") %>%
-  layer_dropout(0.25) %>%
-  layer_dense(10, activation = "softmax")
-
-fmnist_model2 %>% compile(
-  loss = "categorical_crossentropy",
-  optimizer = optimizer_adadelta(lr = 0.01, decay = 1e-6),
-  metrics = "accuracy"
-)
-
-if (!dir.exists("tensorboard")) dir.create("tensorboard")
-history <- fmnist_model2 %>% fit(
-  fashion_mnist_train_X,
-  fashion_mnist_train_Y,
-  batch_size = 128,
-  epochs = 10,
-  validation_split = 0.2,
-  callbacks = c(callback_model_checkpoint(monitor = "val_accuracy",
-                                          filepath = "models/fmnist_model2.hdf5",
-                                          save_best_only = TRUE),
-                callback_early_stopping(monitor = "val_accuracy", patience = 5),
-                callback_tensorboard(log_dir = "tensorboard"))
-)
-
-tensorboard("tensorboard")
-
-fmnist_model2 %>% evaluate(fashion_mnist_test_X, fashion_mnist_test_Y)
 ```
 

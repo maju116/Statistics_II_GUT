@@ -84,7 +84,7 @@ history <- boston_model %>%
   fit(x = boston_train_X,
       y = boston_train_Y,
       validation_split = 0.2, # 20% of the data for validation
-      epochs = 50, # Number of "loops" over whole dataset
+      epochs = 5, # Number of "loops" over whole dataset
       batch_size = 30, # Sample size for one run of SGD
       verbose = 1)
 ```
@@ -138,20 +138,6 @@ Stwórzmy kilka prostych modeli:
 # Compile model with binary crossentropy as loss and SGD optimizer
 # Fit the model using 10% of the data for validation, 100 epochs and batch_size of 100. Save runs to 'history' object. Use 'verbose' = 0.
 # Evaluate model on the test data
-bin_model <- keras_model_sequential() %>%
-  layer_dense(8, input_shape = c(2), activation = "relu",
-              activity_regularizer = regularizer_l1(l = 0.3)) %>%
-  layer_dense(1, activation = "sigmoid") %>%
-  compile(loss = 'binary_crossentropy',
-          optimizer = 'sgd',
-          metrics = c('accuracy'))
-history <- bin_model %>% fit(x = bin_class_train_X,
-                             y = bin_class_train_Y,
-                             validation_split = 0.1,
-                             epochs = 100,
-                             batch_size = 100,
-                             verbose = 0)
-bin_model %>% evaluate(bin_class_test_X, bin_class_test_Y)
 
 history$metrics$epoch <- 1:100 # Epochs
 history_df <- as.data.frame(history$metrics)
@@ -172,7 +158,7 @@ xy_axis <- data.frame(x = expand.grid(1:28, 28:1)[, 1],
                       y = expand.grid(1:28, 28:1)[, 2])
 plot_theme <- list(
   raster = geom_raster(hjust = 0, vjust = 0),
-  gradient_fill = scale_fill_gradient(low = "white", high = "black", guide = FALSE),
+  gradient_fill = scale_fill_gradient(low = "white", high = "black", guide = "none"),
   theme = theme_void()
 )
 
@@ -204,34 +190,6 @@ Oprócz regularyzacji l1 / l2 możemy również użyć regularyzacji dropout. W 
 # Fit the model. Use 20% of the data for validation, 20 epochs and 128 samples for batch size.
 
 # Evaluate model on test set.
-
-fashion_mnist_train_Y <- fashion_mnist_train_Y %>% to_categorical(., 10)
-fashion_mnist_test_Y <- fashion_mnist_test_Y  %>% to_categorical(., 10)
-
-fashion_mnist_train_X <- fashion_mnist_train_X / 255
-fashion_mnist_test_X <- fashion_mnist_test_X/ 255
-
-fashion_model <- keras_model_sequential() %>%
-  layer_dense(units = 512, activation = "relu", input_shape = 784) %>%
-  layer_dropout(0.2) %>%
-  layer_dense(units = 512, activation = "relu") %>%
-  layer_dropout(0.2) %>%
-  layer_dense(units = 10, activation = "softmax")
-
-fashion_model %>% compile(
-  optimizer = "sgd",
-  loss = "categorical_crossentropy",
-  metrics = c("accuracy")
-)
-
-history <- fashion_model %>%
-  fit(x = fashion_mnist_train_X,
-      y = fashion_mnist_train_Y,
-      validation_split = 0.2,
-      epochs = 20,
-      batch_size = 128)
-
-fashion_model %>% evaluate(fashion_mnist_test_X, fashion_mnist_test_Y)
 ```
 
 Trenowanie sieci neuronowej może zająć dużo czasu, a rozwiązanie rzeczywistego problemu może zająć dni, tygodnie, a nawet miesiące. W tym czasie wiele rzeczy może pójść nie tak, na przykład jeśli twój komputer zresetuje się z nieznanego powodu, stracisz cały postęp i dużo czasu! Aby rozwiązać ten problem, możemy dodać punkt kontrolny modelu, który będzie zapisywać model w każdej epoce. Punkt kontrolny modelu jest jednym z wielu wywołań zwrotnych, których możesz używać w Keras podczas procesu szkolenia:
@@ -240,23 +198,10 @@ Trenowanie sieci neuronowej może zająć dużo czasu, a rozwiązanie rzeczywist
 # Create a new model for binary classification and compile it.
 
 # Fit the model and use `callbacks` argument with `model_checkpoint`
-bin_model <- keras_model_sequential() %>%
-  layer_dense(8, input_shape = c(2), activation = "relu",
-              activity_regularizer = regularizer_l1(l = 0.3)) %>%
-  layer_dense(1, activation = "sigmoid") %>%
-  compile(loss = 'binary_crossentropy',
-          optimizer = 'sgd',
-          metrics = c('accuracy'))
-model_checkpoint <- callback_model_checkpoint(filepath = "models/bin_model.{epoch:02d}-{val_loss:.2f}.hdf5",
-                                              monitor = "val_loss",
-                                              save_freq = "epoch")
-history <- bin_model %>% fit(x = bin_class_train_X,
-                             y = bin_class_train_Y,
-                             validation_split = 0.1,
-                             epochs = 100,
-                             batch_size = 100,
-                             verbose = 1,
-                             callbacks = model_checkpoint)
+model_checkpoint <- callback_model_checkpoint(
+  filepath = "models/bin_model.{epoch:02d}-{val_loss:.2f}.hdf5",
+  monitor = "val_loss", # Monitored quantity
+  save_freq = "epoch") # Saving every 1 epoch
 ```
 
 To świetnie, teraz możemy wznowić trening w dowolnym momencie. Wywołania zwrotne mogą nam również pomóc w nadmiernym dopasowaniu i długim czasie obliczeń. Jak widzieliście w poprzednich przykładach, niektóre modele mają tendencję do nadmiernego dopasowania, jeśli liczba epok jest zbyt duża. Byłoby wspaniale poinformować Keras, że chcielibyśmy przestać trenować nasz model, na przykład, gdyby dokładność walidacji nie wzrosła w kilku epokach. Ta metoda nazywa się wczesnym stopowaniem i w Kerasie możemy utworzyć wywołanie zwrotne dla tego zadania:
@@ -267,24 +212,7 @@ To świetnie, teraz możemy wznowić trening w dowolnym momencie. Wywołania zwr
 # Fit the model and use `callbacks` argument with:
 # Create model checkpoint that will save best model into "models/bin_model.best.hdf5". Use validation accuracy as monitored quantity. Set `save_best_only` argument to TRUE to save only the model with best weights.
 # Create early stopping callback using `callback_early_stopping` function. Set the same monitor as in model checkpoint and set `patience` to 3 epochs.
-bin_model <- keras_model_sequential() %>%
-  layer_dense(4, input_shape = c(2), activation = "tanh",
-              activity_regularizer = regularizer_l1(l = 0.3)) %>%
-  layer_dense(1, activation = "sigmoid") %>%
-  compile(loss = 'binary_crossentropy',
-          optimizer = 'sgd',
-          metrics = c('accuracy'))
-model_checkpoint <- callback_model_checkpoint(filepath = "models/bin_model.best.hdf5",
-                                              monitor = "val_accuracy",
-                                              save_best_only = TRUE)
-early_stopping <- callback_early_stopping(monitor = "val_accuracy", patience = 3)
-history <- bin_model %>% fit(x = bin_class_train_X,
-                             y = bin_class_train_Y,
-                             validation_split = 0.1,
-                             epochs = 100,
-                             batch_size = 100,
-                             verbose = 1,
-                             callbacks = list(model_checkpoint, early_stopping))
+
 ```
 
 Wiesz już, że możesz wyświetlić architekturę modelu, po prostu printując model w konsoli, ale czasami wygodnie jest wyświetlić go jako wykres.

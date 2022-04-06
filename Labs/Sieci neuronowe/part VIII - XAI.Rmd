@@ -35,7 +35,7 @@ model_titanic <- keras_model_sequential() %>%
   layer_dense(units = 1, activation = "sigmoid")
 
 model_titanic %>% compile(
-  optimizer = optimizer_sgd(lr = 0.01),
+  optimizer = optimizer_sgd(learning_rate = 0.01),
   loss = "binary_crossentropy",
   metrics = c("accuracy")
 )
@@ -117,6 +117,7 @@ Możemy również wygenerować wyjaśnienie prognozy dla pojedynczej nowej obser
 sp_keras <- predict_parts(explainer_titanic_keras, henry_matrix)
 plot(sp_keras)
 ```
+
 
 `DALEX` może być używany do wszelkiego rodzaju modeli ML / DL, które działają na danych tabelarycznych, ale co, jeśli chcemy wyjaśnić zaawansowane modele, takie jak CNN. Zamiast tego możemy użyć `lime`. Załadujmy nasz model Alien vs Predator:
 

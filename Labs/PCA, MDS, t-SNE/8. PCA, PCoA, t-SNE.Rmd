@@ -398,7 +398,7 @@ ggplot(pca_mnist, aes(PC1, PC2, color = label)) + theme_bw() + geom_point()
 # t-SNE
 tsne <- Rtsne(mnist[ , -1],
               dims = 2, # Na ile wymiarów chcemy rzutować nasze dane
-              perplexity = 30,
+              perplexity = 3,
               verbose = TRUE,
               pca = TRUE, # Czy wykonać PCA na początku ?
               max_iter = 500) # Liczba iteracji algorytmu
