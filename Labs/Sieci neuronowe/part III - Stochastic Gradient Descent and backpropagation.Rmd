@@ -12,8 +12,8 @@ library(gridExtra)
 Zacznijmy od prostej funkcji `f (x) = x ^ 2 + 1` i jej pochodnej `f'(x) = 2x`. Znalezienie minimum `f(x)` jest proste w tej sytuacji: minimalna wartość jest równa `1`, gdy `x == 0`. Zauważ, że nasza pochodna `f'(x)` równa się `0` dokładnie w tym punkcie (jeśli wartość pochodnej `f'(x) `jest równa `0` w punkcie `x == x0`, funkcja `f(x)` ma lokalne / globalne minimum / maksimum / punkt zwrotny w `x0`).
 
 ```{r ordinary_function}
-f <- function(x) ____
-grad_f <- function(x) ____
+f <- function(x) x^2 + 1
+grad_f <- function(x) 2*x
 sample_data = tibble(
   x = seq(-2, 2, by = 0.05),
   y = f(x),
@@ -40,7 +40,7 @@ GD_ordinary_fun <- function(f, grad_f, x0, lr, epochs) {
     x = x0, y = f(x), grad = grad_f(x)
   )
   for (i in 1:epochs) {
-    x <- ____ # GD
+    x <- x - lr * grad_f(x) # GD
     results[i + 1, ] <- list(x, f(x), grad_f(x))
     print(paste("Updated x value:", round(x, 8), ". Updated f(x) value:", round(f(x), 8)))
   }
@@ -62,7 +62,7 @@ base_plot
 Naszym zadaniem jest znalezienie parametrów `b0` i `b1` modelu liniowego `y = b0 + b1*x` takich aby błąd średniokwadratowy (mean squared error) był minimalny. Zanim zaczniemy, sprawdźmy rozwiązanie z R:
 
 ```{r linear_reg_r}
-lm_model <- ____
+lm_model <- lm(y ~ x, sample_data)
 summary(lm_model)
 mean(lm_model$residuals^2) # MSE from model
 ```
@@ -70,21 +70,21 @@ mean(lm_model$residuals^2) # MSE from model
 Nasz model liniowy można zapisać w notacji macierzowej jako `y = Xb`. Zacznijmy od stworzenia macierzy predyktorów `X` i wektora przewidywanych wartości `y` z naszych oryginalnych danych:
 
 ```{r linear_reg_matrix_data}
-X <- ____
-y <- ____
+X <- tibble(x0 = 1, x1 = sample_data$x) %>% as.matrix()
+y <- sample_data$y
 ```
 
 Teraz musimy zaimplementować MSE:
 
 ```{r linear_reg_mse}
-MSE <- function(beta, X, y) ____
+MSE <- function(beta, X, y) mean((beta%*%t(X) - y)^2)
 MSE(c(2.95039, 0.93806), X, y)
 ```
 
 i jego pochodną:
 
 ```{r linear_reg_mse_grad}
-MSE_grad <- function(beta, X, y) ____
+MSE_grad <- function(beta, X, y) 2*((beta%*%t(X) - y)%*%X)/length(y)
 ```
 
 Szczerze mówiąc, nie musimy tutaj używać Gradient Descent, równanie `MSE_grad == 0` ma rozwiązanie numeryczne:
@@ -105,7 +105,7 @@ GD_linear_regression <- function(beta00, X, y, lr, epochs) {
     b0 = beta00[1], b1 = beta00[2], mse = MSE(beta00, X, y), epoch = 0
   )
   for (i in 1:epochs) {
-    beta <- ____ # GD
+    beta <- beta - lr * MSE_grad(beta, X, y) # GD
     results[i + 1, ] <- list(beta[1], beta[2], MSE(beta, X, y), i)
     print(paste("Updated b0 value:", round(beta[1], 8),
                 "Updated b1 value:", round(beta[2], 8),
@@ -141,13 +141,13 @@ SGD_linear_regression <- function(beta00, X, y, lr, epochs, batch_size) {
   results <- tibble(
     b0 = beta00[1], b1 = beta00[2], mse = MSE(beta00, X, y), epoch = 0
   )
-  batches_per_epoch <- ____
+  batches_per_epoch <- ceiling(length(y) / batch_size)
   for (i in 1:epochs) {
     for (b in 1:batches_per_epoch) {
-      indexes <- ____
-      X_b <- ____
-      y_b <- ____
-      beta <- ____ # SGD
+      indexes <- ((b - 1) * batch_size + 1):min((b * batch_size), length(y))
+      X_b <- X[indexes, , drop = FALSE]
+      y_b <- y[indexes]
+      beta <- beta - lr * MSE_grad(beta, X_b, y_b) # SGD
       results <- rbind(results, c(beta[1], beta[2], MSE(beta, X, y), i + b / batches_per_epoch))
     }
     print(paste("Updated b0 value:", round(beta[1], 8),
@@ -185,35 +185,35 @@ base_plot
 Jak zawsze możemy sprawdzić rozwiązanie w R. R używa algorytmu scoringu Fishera lub algorytmu scoringu Newtona - algorytmy te wykorzystują nie tylko pierwszą, ale także drugą pochodną do aktualizacji parametrów. Korzystanie z drugiej pochodnej ma zalety, ale obliczenia są naprawdę czasochłonne i pochłaniają pamięć.
 
 ```{r logistic_reg_r}
-logistic_model <- ____
+logistic_model <- glm(class ~ x + y, sample_data, family = "binomial")
 summary(logistic_model)
 ```
 
 Podobnie jak w przypadku regresji liniowej utworzymy macierz predykcji i wektor przewidywanych wartości:
 
 ```{r logistic_reg_matrix_data}
-X <- ____
-y <- ____
+X <- tibble(x0 = 1, x1 = sample_data$x, x2 = sample_data$y) %>% as.matrix()
+y <- sample_data$class
 ```
 
 Następnym krokiem jest zaimplementowanie funkcji **sigmoid** używanej w regresji logistycznej:
 
 ```{r sigmoid}
-sigmoid <- function(x) ____
+sigmoid <- function(x) 1 / (1 + exp(-x))
 ```
 
 i jej pochodnej:
 
 ```{r sigmoid_grad}
-sigmoid_grad <- function(x) ____
+sigmoid_grad <- function(x) sigmoid(x) * (1 - sigmoid(x))
 ```
 
 W przypadku klasyfikacji binarnej naszą funkcją straty będzie **binary crossentropy**:
 
 ```{r binary_crossentropy}
 binary_crossentropy <- function(beta, X, y) {
-  z <- ____
-  ____
+  z <- sigmoid(beta%*%t(X))
+  -mean(y * log(z) + (1 - y) * log(1 - z))
 }
 ```
 
@@ -221,10 +221,10 @@ Potrzebujemy również gradientu. Tutaj zastosujemy tak zwaną **regułę łańc
 
 ```{r binary_crossentropy_grad}
 binary_crossentropy_grad <- function(beta, X, y) {
-  z <- ____
-  dL <- ____
-  dV <- ____
-  dx <- ____
+  z <- sigmoid(beta%*%t(X))
+  dL <- (-y / z - (1 - y) / (z - 1)) / length(y)
+  dV <- sigmoid_grad(beta%*%t(X))
+  dx <- X
   (dL * dV) %*% dx
 }
 ```
@@ -241,13 +241,13 @@ SGD_logistic_regression <- function(beta00, X, y, lr, epochs, batch_size) {
   results <- tibble(
     b0 = beta00[1], b1 = beta00[2], b2 = beta00[3], log_loss = binary_crossentropy(beta00, X, y), epoch = 0
   )
-  batches_per_epoch <- ____
+  batches_per_epoch <- ceiling(length(y) / batch_size)
   for (i in 1:epochs) {
     for (b in 1:batches_per_epoch) {
-      indexes <- ____
-      X_b <- ____
-      y_b <- ____
-      beta <- ____ # SGD
+      indexes <- ((b - 1) * batch_size + 1):min((b * batch_size), length(y))
+      X_b <- X[indexes, , drop = FALSE]
+      y_b <- y[indexes]
+      beta <- beta - lr * binary_crossentropy_grad(beta, X_b, y_b) # SGD
       results <- rbind(results, c(beta[1], beta[2], beta[3], binary_crossentropy(beta, X, y), i + b / batches_per_epoch))
     }
     print(paste("Updated b0 value:", round(beta[1], 8),
@@ -275,11 +275,11 @@ Zaczniemy od implementacji **forward step**, czyli wyliczenia outputu sieci dla 
 ```{r forward_step}
 forward_propagation <- function(X, w1, w2) {
   # Linear combination of inputs and weights
-  z1 <- ____
+  z1 <- X %*% w1
   # Activation function - sigmoid
-  h <- ____
+  h <- sigmoid(z1)
   # Linear combination of 1-layer hidden units and weights
-  z2 <- ____
+  z2 <- cbind(1, h) %*% w2
   # Output
   list(output = sigmoid(z2), h = h)
 }
@@ -296,8 +296,8 @@ backward_propagation <- function(X, y, y_hat, w1, w2, h, lr) {
   # w1 gradient
   dw1 <- t(X) %*% ((h * (1 - h) * dh))
   # SGD
-  w1 <- ____
-  w2 <- ____
+  w1 <- w1 - lr * dw1
+  w2 <- w2 - lr * dw2
   list(w1 = w1, w2 = w2)
 }
 ```
@@ -324,8 +324,12 @@ SGD_single_layer_perceptron <- function(w100, w200, X, y, lr, epochs, batch_size
       indexes <- ((b - 1) * batch_size + 1):min((b * batch_size), length(y))
       X_b <- X[indexes, , drop = FALSE]
       y_b <- y[indexes]
-      ff <- ____
-      bp <- ____
+      ff <- forward_propagation(X_b, w1, w2)
+      bp <- backward_propagation(X_b, y_b,
+                                 y_hat = ff$output,
+                                 w1, w2,
+                                 h = ff$h,
+                                 lr = lr)
       w1 <- bp$w1
       w2 <- bp$w2
       results <- rbind(results, c(mean((forward_propagation(X, w1, w2)$output - y)^2), i + b / batches_per_epoch))

@@ -1771,30 +1771,60 @@ Networks</h1>
 <!-- rnb-text-begin -->
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubGlicmFyeShrZXJhcylcbmxpYnJhcnkodGlkeXZlcnNlKVxubGlicmFyeShncmlkKVxubGlicmFyeShncmlkRXh0cmEpXG5gYGAifQ== -->
-<pre class="r"><code>library(keras)
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxubGlicmFyeShrZXJhcylcbmxpYnJhcnkodGlkeXZlcnNlKVxubGlicmFyeShncmlkKVxubGlicmFyeShncmlkRXh0cmEpXG5gYGBcbmBgYCJ9 -->
+<pre class="r"><code>```r
+library(keras)
 library(tidyverse)
 library(grid)
 library(gridExtra)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<p>Zanim zbudujemy CNN w Keras, musimy zrozumieć konwolucję i pooling.
-Załaduj obraz „data/zebra.jpg”</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuemVicmEgPC0gaW1hZ2VfbG9hZChcImRhdGEvemVicmEuanBnXCIsIGdyYXlzY2FsZSA9IFRSVUUsIHRhcmdldF9zaXplID0gYygyMDAsIDMwMCkpICU+JVxuICBpbWFnZV90b19hcnJheSgpICU+JSBgL2AoMjU1KVxuaW1hZ2UodCh6ZWJyYVssICwgMV0pWywgbnJvdyh6ZWJyYSk6MV0sIGNvbCA9IGdyZXkoc2VxKDAsIDEsIGxlbmd0aCA9IDI1NikpLCBheGVzID0gRilcbmBgYCJ9 -->
-<pre class="r"><code>zebra &lt;- image_load(&quot;data/zebra.jpg&quot;, grayscale = TRUE, target_size = c(200, 300)) %&gt;%
+<pre><code>
+&lt;!-- rnb-source-end --&gt;
+
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+
+Zanim zbudujemy CNN w Keras, musimy zrozumieć konwolucję i pooling. Załaduj obraz „data/zebra.jpg”
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuemVicmEgPC0gaW1hZ2VfbG9hZChcXGRhdGEvemVicmEuanBnXFwsIGdyYXlzY2FsZSA9IFRSVUUsIHRhcmdldF9zaXplID0gYygyMDAsIDMwMCkpICU+JVxuICBpbWFnZV90b19hcnJheSgpICU+JSBgL2AoMjU1KVxuaW1hZ2UodCh6ZWJyYVssICwgMV0pWywgbnJvdyh6ZWJyYSk6MV0sIGNvbCA9IGdyZXkoc2VxKDAsIDEsIGxlbmd0aCA9IDI1NikpLCBheGVzID0gRilcbmBgYFxuYGBgIn0= --&gt;
+
+```r
+```r
+zebra &lt;- image_load(\data/zebra.jpg\, grayscale = TRUE, target_size = c(200, 300)) %&gt;%
   image_to_array() %&gt;% `/`(255)
 image(t(zebra[, , 1])[, nrow(zebra):1], col = grey(seq(0, 1, length = 256)), axes = F)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<p>Teraz możemy zaimplementować prostą konwolucję:</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc29iZWxfZmlsdGVyX3ggPC0gbWF0cml4KGMoMSwgMiwgMSwgMCwgMCwgMCwgLTEsIC0yLCAtMSksIDMsIDMsIGJ5cm93ID0gRkFMU0UpXG5cbmtlcm5lbF9zaGFwZSA8LSAzXG5wYWRkaW5nIDwtIDBcbnN0cmlkZSA8LSAxXG5pbnB1dF9oZWlnaHQgPC0gbnJvdyh6ZWJyYSlcbmlucHV0X3dpZHRoIDwtIG5jb2woemVicmEpXG5hY3RpdmF0aW9uX21hcF9oZWlnaHQgPC0gKGlucHV0X2hlaWdodCArIDIgKiBwYWRkaW5nIC0ga2VybmVsX3NoYXBlKSAvIHN0cmlkZSArIDFcbmFjdGl2YXRpb25fbWFwX3dpZHRoIDwtIChpbnB1dF93aWR0aCArIDIgKiBwYWRkaW5nIC0ga2VybmVsX3NoYXBlKSAvIHN0cmlkZSArIDFcbmFjdGl2YXRpb25fbWFwIDwtIG1hdHJpeCgwLCBucm93ID0gYWN0aXZhdGlvbl9tYXBfaGVpZ2h0LCBuY29sID0gYWN0aXZhdGlvbl9tYXBfd2lkdGgpXG5cbmZvciAodyBpbiAxOm5jb2woYWN0aXZhdGlvbl9tYXApKSB7XG4gIGZvciAoaCBpbiAxOm5yb3coYWN0aXZhdGlvbl9tYXApKSB7XG4gICAgYWN0aXZhdGlvbl9tYXBbaCwgd10gPC0gc3VtKHNvYmVsX2ZpbHRlcl94ICogemVicmFbaDooaCArIGtlcm5lbF9zaGFwZSAtIDEpLCB3Oih3ICsga2VybmVsX3NoYXBlIC0gMSksIDFdKVxuICB9XG59XG5cbmltYWdlKHQoYWN0aXZhdGlvbl9tYXApWywgbnJvdyhhY3RpdmF0aW9uX21hcCk6MV0sIGNvbCA9IGdyZXkoc2VxKDAsIDEsIGxlbmd0aCA9IDI1NikpLCBheGVzID0gRilcbmBgYCJ9 -->
-<pre class="r"><code>sobel_filter_x &lt;- matrix(c(1, 2, 1, 0, 0, 0, -1, -2, -1), 3, 3, byrow = FALSE)
+<pre><code>
+&lt;!-- rnb-source-end --&gt;
+
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+
+Teraz możemy zaimplementować prostą konwolucję:
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuc29iZWxfZmlsdGVyX3ggPC0gbWF0cml4KGMoMSwgMiwgMSwgMCwgMCwgMCwgLTEsIC0yLCAtMSksIDMsIDMsIGJ5cm93ID0gRkFMU0UpXG5cbmtlcm5lbF9zaGFwZSA8LSAzXG5wYWRkaW5nIDwtIDBcbnN0cmlkZSA8LSAxXG5pbnB1dF9oZWlnaHQgPC0gbnJvdyh6ZWJyYSlcbmlucHV0X3dpZHRoIDwtIG5jb2woemVicmEpXG5hY3RpdmF0aW9uX21hcF9oZWlnaHQgPC0gKGlucHV0X2hlaWdodCArIDIgKiBwYWRkaW5nIC0ga2VybmVsX3NoYXBlKSAvIHN0cmlkZSArIDFcbmFjdGl2YXRpb25fbWFwX3dpZHRoIDwtIChpbnB1dF93aWR0aCArIDIgKiBwYWRkaW5nIC0ga2VybmVsX3NoYXBlKSAvIHN0cmlkZSArIDFcbmFjdGl2YXRpb25fbWFwIDwtIG1hdHJpeCgwLCBucm93ID0gYWN0aXZhdGlvbl9tYXBfaGVpZ2h0LCBuY29sID0gYWN0aXZhdGlvbl9tYXBfd2lkdGgpXG5cbmZvciAodyBpbiAxOm5jb2woYWN0aXZhdGlvbl9tYXApKSB7XG4gIGZvciAoaCBpbiAxOm5yb3coYWN0aXZhdGlvbl9tYXApKSB7XG4gICAgYWN0aXZhdGlvbl9tYXBbaCwgd10gPC0gc3VtKHNvYmVsX2ZpbHRlcl94ICogemVicmFbaDooaCArIGtlcm5lbF9zaGFwZSAtIDEpLCB3Oih3ICsga2VybmVsX3NoYXBlIC0gMSksIDFdKVxuICB9XG59XG5cbmltYWdlKHQoYWN0aXZhdGlvbl9tYXApWywgbnJvdyhhY3RpdmF0aW9uX21hcCk6MV0sIGNvbCA9IGdyZXkoc2VxKDAsIDEsIGxlbmd0aCA9IDI1NikpLCBheGVzID0gRilcbmBgYFxuYGBgIn0= --&gt;
+
+```r
+```r
+sobel_filter_x &lt;- matrix(c(1, 2, 1, 0, 0, 0, -1, -2, -1), 3, 3, byrow = FALSE)
 
 kernel_shape &lt;- 3
 padding &lt;- 0
@@ -1812,14 +1842,29 @@ for (w in 1:ncol(activation_map)) {
 }
 
 image(t(activation_map)[, nrow(activation_map):1], col = grey(seq(0, 1, length = 256)), axes = F)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<p>oraz pooling:</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxucG9vbF9zaGFwZSA8LSAyXG5wb29sX3N0cmlkZSA8LSAyXG5hY3RpdmF0aW9uX21hcDJfaGVpZ2h0IDwtIGFjdGl2YXRpb25fbWFwX2hlaWdodCAvIHBvb2xfc2hhcGVcbmFjdGl2YXRpb25fbWFwMl93aWR0aCA8LSBhY3RpdmF0aW9uX21hcF93aWR0aCAvIHBvb2xfc2hhcGVcbmFjdGl2YXRpb25fbWFwMiA8LSBtYXRyaXgoMCwgbnJvdyA9IGFjdGl2YXRpb25fbWFwMl9oZWlnaHQsIG5jb2wgPSBhY3RpdmF0aW9uX21hcDJfd2lkdGgpXG5cbmZvciAodyBpbiAxOm5jb2woYWN0aXZhdGlvbl9tYXAyKSkge1xuICBmb3IgKGggaW4gMTpucm93KGFjdGl2YXRpb25fbWFwMikpIHtcbiAgICBhY3RpdmF0aW9uX21hcDJbaCwgd10gPC0gbWF4KGFjdGl2YXRpb25fbWFwWygyICogKGggLSAxKSArIDEpOigoMiAqIChoIC0gMSkgKyAxKSArIHBvb2xfc2hhcGUgLSAxKSwgKDIgKiAodyAtIDEpICsgMSk6KCgyICogKHcgLSAxKSArIDEpICsgcG9vbF9zaGFwZSAtIDEpXSlcbiAgfVxufVxuXG5pbWFnZSh0KGFjdGl2YXRpb25fbWFwMilbLCBucm93KGFjdGl2YXRpb25fbWFwMik6MV0sIGNvbCA9IGdyZXkoc2VxKDAsIDEsIGxlbmd0aCA9IDI1NikpLCBheGVzID0gRilcbmBgYCJ9 -->
-<pre class="r"><code>pool_shape &lt;- 2
+<pre><code>
+&lt;!-- rnb-source-end --&gt;
+
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+
+oraz pooling:
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxucG9vbF9zaGFwZSA8LSAyXG5wb29sX3N0cmlkZSA8LSAyXG5hY3RpdmF0aW9uX21hcDJfaGVpZ2h0IDwtIGFjdGl2YXRpb25fbWFwX2hlaWdodCAvIHBvb2xfc2hhcGVcbmFjdGl2YXRpb25fbWFwMl93aWR0aCA8LSBhY3RpdmF0aW9uX21hcF93aWR0aCAvIHBvb2xfc2hhcGVcbmFjdGl2YXRpb25fbWFwMiA8LSBtYXRyaXgoMCwgbnJvdyA9IGFjdGl2YXRpb25fbWFwMl9oZWlnaHQsIG5jb2wgPSBhY3RpdmF0aW9uX21hcDJfd2lkdGgpXG5cbmZvciAodyBpbiAxOm5jb2woYWN0aXZhdGlvbl9tYXAyKSkge1xuICBmb3IgKGggaW4gMTpucm93KGFjdGl2YXRpb25fbWFwMikpIHtcbiAgICBhY3RpdmF0aW9uX21hcDJbaCwgd10gPC0gbWF4KGFjdGl2YXRpb25fbWFwWygyICogKGggLSAxKSArIDEpOigoMiAqIChoIC0gMSkgKyAxKSArIHBvb2xfc2hhcGUgLSAxKSwgKDIgKiAodyAtIDEpICsgMSk6KCgyICogKHcgLSAxKSArIDEpICsgcG9vbF9zaGFwZSAtIDEpXSlcbiAgfVxufVxuXG5pbWFnZSh0KGFjdGl2YXRpb25fbWFwMilbLCBucm93KGFjdGl2YXRpb25fbWFwMik6MV0sIGNvbCA9IGdyZXkoc2VxKDAsIDEsIGxlbmd0aCA9IDI1NikpLCBheGVzID0gRilcbmBgYFxuYGBgIn0= --&gt;
+
+```r
+```r
+pool_shape &lt;- 2
 pool_stride &lt;- 2
 activation_map2_height &lt;- activation_map_height / pool_shape
 activation_map2_width &lt;- activation_map_width / pool_shape
@@ -1832,21 +1877,34 @@ for (w in 1:ncol(activation_map2)) {
 }
 
 image(t(activation_map2)[, nrow(activation_map2):1], col = grey(seq(0, 1, length = 256)), axes = F)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<p>Zaczniemy od zbudowania prostego CNN dla zbioru danych dotyczących
-mody. Na pierwszym spotkaniu stworzyliśmy MLP do tego zadania. Załadujmy
-zbiór danych:</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubG9hZChcImRhdGEvZmFzaGlvbl9tbmlzdC5SRGF0YVwiKVxueHlfYXhpcyA8LSBkYXRhLmZyYW1lKHggPSBleHBhbmQuZ3JpZCgxOjI4LCAyODoxKVssIDFdLFxuICAgICAgICAgICAgICAgICAgICAgIHkgPSBleHBhbmQuZ3JpZCgxOjI4LCAyODoxKVssIDJdKVxucGxvdF90aGVtZSA8LSBsaXN0KFxuICByYXN0ZXIgPSBnZW9tX3Jhc3RlcihoanVzdCA9IDAsIHZqdXN0ID0gMCksXG4gIGdyYWRpZW50X2ZpbGwgPSBzY2FsZV9maWxsX2dyYWRpZW50KGxvdyA9IFwid2hpdGVcIiwgaGlnaCA9IFwiYmxhY2tcIiwgZ3VpZGUgPSBcIm5vbmVcIiksXG4gIHRoZW1lID0gdGhlbWVfdm9pZCgpXG4pXG5cbnNhbXBsZV9wbG90cyA8LSBzYW1wbGUoMTpucm93KGZhc2hpb25fbW5pc3RfdHJhaW5fWCksIDEwMCkgJT4lIG1hcCh+IHtcbiAgcGxvdF9kYXRhIDwtIGNiaW5kKHh5X2F4aXMsIGZpbGwgPSBkYXRhLmZyYW1lKGZpbGwgPSBmYXNoaW9uX21uaXN0X3RyYWluX1hbLngsIF0pKVxuICBnZ3Bsb3QocGxvdF9kYXRhLCBhZXMoeCwgeSwgZmlsbCA9IGZpbGwpKSArIHBsb3RfdGhlbWVcbn0pXG5cbmRvLmNhbGwoXCJncmlkLmFycmFuZ2VcIiwgYyhzYW1wbGVfcGxvdHMsIG5jb2wgPSAxMCwgbnJvdyA9IDEwKSlcbmBgYCJ9 -->
-<pre class="r"><code>load(&quot;data/fashion_mnist.RData&quot;)
+<pre><code>
+&lt;!-- rnb-source-end --&gt;
+
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+
+Zaczniemy od zbudowania prostego CNN dla zbioru danych dotyczących mody. Na pierwszym spotkaniu stworzyliśmy MLP do tego zadania. Załadujmy zbiór danych:
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxubG9hZChcXGRhdGEvZmFzaGlvbl9tbmlzdC5SRGF0YVxcKVxueHlfYXhpcyA8LSBkYXRhLmZyYW1lKHggPSBleHBhbmQuZ3JpZCgxOjI4LCAyODoxKVssIDFdLFxuICAgICAgICAgICAgICAgICAgICAgIHkgPSBleHBhbmQuZ3JpZCgxOjI4LCAyODoxKVssIDJdKVxucGxvdF90aGVtZSA8LSBsaXN0KFxuICByYXN0ZXIgPSBnZW9tX3Jhc3RlcihoanVzdCA9IDAsIHZqdXN0ID0gMCksXG4gIGdyYWRpZW50X2ZpbGwgPSBzY2FsZV9maWxsX2dyYWRpZW50KGxvdyA9IFxcd2hpdGVcXCwgaGlnaCA9IFxcYmxhY2tcXCwgZ3VpZGUgPSBcXG5vbmVcXCksXG4gIHRoZW1lID0gdGhlbWVfdm9pZCgpXG4pXG5cbnNhbXBsZV9wbG90cyA8LSBzYW1wbGUoMTpucm93KGZhc2hpb25fbW5pc3RfdHJhaW5fWCksIDEwMCkgJT4lIG1hcCh+IHtcbiAgcGxvdF9kYXRhIDwtIGNiaW5kKHh5X2F4aXMsIGZpbGwgPSBkYXRhLmZyYW1lKGZpbGwgPSBmYXNoaW9uX21uaXN0X3RyYWluX1hbLngsIF0pKVxuICBnZ3Bsb3QocGxvdF9kYXRhLCBhZXMoeCwgeSwgZmlsbCA9IGZpbGwpKSArIHBsb3RfdGhlbWVcbn0pXG5cbmRvLmNhbGwoXFxncmlkLmFycmFuZ2VcXCwgYyhzYW1wbGVfcGxvdHMsIG5jb2wgPSAxMCwgbnJvdyA9IDEwKSlcbmBgYFxuYGBgIn0= --&gt;
+
+```r
+```r
+load(\data/fashion_mnist.RData\)
 xy_axis &lt;- data.frame(x = expand.grid(1:28, 28:1)[, 1],
                       y = expand.grid(1:28, 28:1)[, 2])
 plot_theme &lt;- list(
   raster = geom_raster(hjust = 0, vjust = 0),
-  gradient_fill = scale_fill_gradient(low = &quot;white&quot;, high = &quot;black&quot;, guide = &quot;none&quot;),
+  gradient_fill = scale_fill_gradient(low = \white\, high = \black\, guide = \none\),
   theme = theme_void()
 )
 
@@ -1855,20 +1913,30 @@ sample_plots &lt;- sample(1:nrow(fashion_mnist_train_X), 100) %&gt;% map(~ {
   ggplot(plot_data, aes(x, y, fill = fill)) + plot_theme
 })
 
-do.call(&quot;grid.arrange&quot;, c(sample_plots, ncol = 10, nrow = 10))</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<p>Aby przesłać dane do modelu CNN w keras, musimy przekształcić nasze
-je w odpowiednie tensory. Podobnie jak w przypadku MLP musimy
-przekształcić wektor etykiet do macierzy z kodowaniem one-hot-encoding.
-W przypadku naszych obrazów musimy przedstawić je jako tensor
-4-wymiarowy (próbki, wysokość, szerokość, kanały). Musimy również
-pamiętać o znormalizowaniu wartości pikseli:</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZmFzaGlvbl9tbmlzdF90cmFpbl9ZIDwtIGZhc2hpb25fbW5pc3RfdHJhaW5fWSAlPiUgdG9fY2F0ZWdvcmljYWwoLiwgMTApXG5mYXNoaW9uX21uaXN0X3Rlc3RfWSA8LSBmYXNoaW9uX21uaXN0X3Rlc3RfWSAlPiUgdG9fY2F0ZWdvcmljYWwoLiwgMTApXG5cbmZhc2hpb25fbW5pc3RfdHJhaW5fWCA8LSBmYXNoaW9uX21uaXN0X3RyYWluX1ggLyAyNTVcbmZhc2hpb25fbW5pc3RfdGVzdF9YIDwtIGZhc2hpb25fbW5pc3RfdGVzdF9YIC8gMjU1XG5cbmZhc2hpb25fbW5pc3RfdHJhaW5fWCA8LSBhcnJheV9yZXNoYXBlKGZhc2hpb25fbW5pc3RfdHJhaW5fWCwgYyhucm93KGZhc2hpb25fbW5pc3RfdHJhaW5fWCksIDI4LCAyOCwgMSkpXG5mYXNoaW9uX21uaXN0X3Rlc3RfWCA8LSBhcnJheV9yZXNoYXBlKGZhc2hpb25fbW5pc3RfdGVzdF9YLCBjKG5yb3coZmFzaGlvbl9tbmlzdF90ZXN0X1gpLCAyOCwgMjgsIDEpKVxuXG5kaW0oZmFzaGlvbl9tbmlzdF90cmFpbl9YKVxuYGBgIn0= -->
-<pre class="r"><code>fashion_mnist_train_Y &lt;- fashion_mnist_train_Y %&gt;% to_categorical(., 10)
+do.call(\grid.arrange\, c(sample_plots, ncol = 10, nrow = 10))</code></pre>
+<pre><code>
+&lt;!-- rnb-source-end --&gt;
+
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+
+Aby przesłać dane do modelu CNN w keras, musimy przekształcić nasze je w odpowiednie tensory. Podobnie jak w przypadku MLP musimy przekształcić wektor etykiet do macierzy z kodowaniem one-hot-encoding. W przypadku naszych obrazów musimy przedstawić je jako tensor 4-wymiarowy (próbki, wysokość, szerokość, kanały). Musimy również pamiętać o znormalizowaniu wartości pikseli:
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuZmFzaGlvbl9tbmlzdF90cmFpbl9ZIDwtIGZhc2hpb25fbW5pc3RfdHJhaW5fWSAlPiUgdG9fY2F0ZWdvcmljYWwoLiwgMTApXG5mYXNoaW9uX21uaXN0X3Rlc3RfWSA8LSBmYXNoaW9uX21uaXN0X3Rlc3RfWSAlPiUgdG9fY2F0ZWdvcmljYWwoLiwgMTApXG5cbmZhc2hpb25fbW5pc3RfdHJhaW5fWCA8LSBmYXNoaW9uX21uaXN0X3RyYWluX1ggLyAyNTVcbmZhc2hpb25fbW5pc3RfdGVzdF9YIDwtIGZhc2hpb25fbW5pc3RfdGVzdF9YIC8gMjU1XG5cbmZhc2hpb25fbW5pc3RfdHJhaW5fWCA8LSBhcnJheV9yZXNoYXBlKGZhc2hpb25fbW5pc3RfdHJhaW5fWCwgYyhucm93KGZhc2hpb25fbW5pc3RfdHJhaW5fWCksIDI4LCAyOCwgMSkpXG5mYXNoaW9uX21uaXN0X3Rlc3RfWCA8LSBhcnJheV9yZXNoYXBlKGZhc2hpb25fbW5pc3RfdGVzdF9YLCBjKG5yb3coZmFzaGlvbl9tbmlzdF90ZXN0X1gpLCAyOCwgMjgsIDEpKVxuXG5kaW0oZmFzaGlvbl9tbmlzdF90cmFpbl9YKVxuYGBgXG5gYGAifQ== --&gt;
+
+```r
+```r
+fashion_mnist_train_Y &lt;- fashion_mnist_train_Y %&gt;% to_categorical(., 10)
 fashion_mnist_test_Y &lt;- fashion_mnist_test_Y %&gt;% to_categorical(., 10)
 
 fashion_mnist_train_X &lt;- fashion_mnist_train_X / 255
@@ -1878,89 +1946,102 @@ fashion_mnist_train_X &lt;- array_reshape(fashion_mnist_train_X, c(nrow(fashion_
 fashion_mnist_test_X &lt;- array_reshape(fashion_mnist_test_X, c(nrow(fashion_mnist_test_X), 28, 28, 1))
 
 dim(fashion_mnist_train_X)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<p>Dane są w poprawnej formie tensorowej, możemy przystąpić do budowy
-modelu. Jak zawsze będzie to model sekwencyjny. Jako pierwszą warstwę
-użyjemy warstwy konwolucyjnej:</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm1uaXN0X21vZGVsMSA8LSBrZXJhc19tb2RlbF9zZXF1ZW50aWFsKCkgJT4lXG4gICMgMkQgY29udm9sdXRpb24sIDMyIGZpbHRlcnMgb2Ygc2l6ZSAzeDMsIGlucHV0IGMoMjgsIDI4LCAxKSAtIGdyYXlzY2FsZVxuICBsYXllcl9jb252XzJkKGZpbHRlcnMgPSAzMiwga2VybmVsX3NpemUgPSBjKDMsIDMpLCBhY3RpdmF0aW9uID0gJ3JlbHUnLFxuICAgICAgICAgICAgICAgIGlucHV0X3NoYXBlID0gYygyOCwgMjgsIDEpKVxuZm1uaXN0X21vZGVsMVxuYGBgIn0= -->
-<pre class="r"><code>fmnist_model1 &lt;- keras_model_sequential() %&gt;%
+<pre><code>
+&lt;!-- rnb-source-end --&gt;
+
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+
+Dane są w poprawnej formie tensorowej, możemy przystąpić do budowy modelu. Jak zawsze będzie to model sekwencyjny. Jako pierwszą warstwę użyjemy warstwy konwolucyjnej:
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuZm1uaXN0X21vZGVsMSA8LSBrZXJhc19tb2RlbF9zZXF1ZW50aWFsKCkgJT4lXG4gICMgMkQgY29udm9sdXRpb24sIDMyIGZpbHRlcnMgb2Ygc2l6ZSAzeDMsIGlucHV0IGMoMjgsIDI4LCAxKSAtIGdyYXlzY2FsZVxuICBsYXllcl9jb252XzJkKGZpbHRlcnMgPSAzMiwga2VybmVsX3NpemUgPSBjKDMsIDMpLCBhY3RpdmF0aW9uID0gJ3JlbHUnLFxuICAgICAgICAgICAgICAgIGlucHV0X3NoYXBlID0gYygyOCwgMjgsIDEpKVxuZm1uaXN0X21vZGVsMVxuYGBgXG5gYGAifQ== --&gt;
+
+```r
+```r
+fmnist_model1 &lt;- keras_model_sequential() %&gt;%
   # 2D convolution, 32 filters of size 3x3, input c(28, 28, 1) - grayscale
   layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = &#39;relu&#39;,
                 input_shape = c(28, 28, 1))
 fmnist_model1</code></pre>
+<pre><code>
+&lt;!-- rnb-source-end --&gt;
+
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+
+Dlaczego mamy do wytrenowania 320 parametrów?
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuYGBgclxuMzIgKiAoMyAqIDMgKiAxICsgMSkgIyAzMiBmaWx0ZXJzIG9mIHNpemUgM3gzKHgxKSArIGJpYXMgZm9yIGVhY2ggb2YgdGhlbVxuYGBgXG5gYGBcbmBgYCJ9 --&gt;
+
+```r
+```r
+```r
+32 * (3 * 3 * 1 + 1) # 32 filters of size 3x3(x1) + bias for each of them</code></pre>
+<pre><code></code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
-<p>Dlaczego mamy do wytrenowania 320 parametrów?</p>
+<p>Dlaczego output ma kształt (None, 26, 26, 32) ?</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuMzIgKiAoMyAqIDMgKiAxICsgMSkgIyAzMiBmaWx0ZXJzIG9mIHNpemUgM3gzKHgxKSArIGJpYXMgZm9yIGVhY2ggb2YgdGhlbVxuYGBgXG5gYGAifQ== -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuYGBgclxuYGBgclxuYGBgclxuMjYgLyAyICMgMjYgLSBpbnB1dCBvZiB0aGUgYWN0aXZhdGlvbiBtYXAgc2hhcGUsIDIgLSBwb29sIHNpemVcbmBgYFxuYGBgXG5gYGBcbmBgYFxuYGBgIn0= -->
 <pre class="r"><code>```r
-32 * (3 * 3 * 1 + 1) # 32 filters of size 3x3(x1) + bias for each of them</code></pre>
-<pre><code>
-&lt;!-- rnb-source-end --&gt;
-
-&lt;!-- rnb-chunk-end --&gt;
-
-
-&lt;!-- rnb-text-begin --&gt;
-
-
-Dlaczego output ma kształt (None, 26, 26, 32) ? 
-
-
-&lt;!-- rnb-text-end --&gt;
-
-
-&lt;!-- rnb-chunk-begin --&gt;
-
-
-&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuKCgyOCAtIDMgKyAyICogMCkgLyAxKSArIDEgIyAyOCAtIGlucHV0IGltYWdlIHNpemUsIDMgLSBrZXJuc2wgc2l6ZSwgMCAtIHBhZGRpbmcsIDEgLSBzdHJpZGVcbmBgYFxuYGBgIn0= --&gt;
-
 ```r
 ```r
-((28 - 3 + 2 * 0) / 1) + 1 # 28 - input image size, 3 - kernsl size, 0 - padding, 1 - stride</code></pre>
-<pre><code>
-&lt;!-- rnb-source-end --&gt;
-
-&lt;!-- rnb-chunk-end --&gt;
-
-
-&lt;!-- rnb-text-begin --&gt;
-
-
-Po warstwie konwolucyjnej możemy dodać kolejną. Użyjmy warstwy max pooling:
-
-
-&lt;!-- rnb-text-end --&gt;
-
-
-&lt;!-- rnb-chunk-begin --&gt;
-
-
-&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm1uaXN0X21vZGVsMSAlPiVcbiAgIyAyRCBtYXggcG9vbGluZyBzaXplIDJ4Mih4MSlcbiAgbGF5ZXJfbWF4X3Bvb2xpbmdfMmQocG9vbF9zaXplID0gYygyLCAyKSlcbmZtbmlzdF9tb2RlbDFcbmBgYCJ9 --&gt;
-
 ```r
-fmnist_model1 %&gt;%
-  # 2D max pooling size 2x2(x1)
-  layer_max_pooling_2d(pool_size = c(2, 2))
-fmnist_model1</code></pre>
+26 / 2 # 26 - input of the activation map shape, 2 - pool size</code></pre>
+<pre><code></code></pre>
+<pre><code></code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<p>Po warstwie konwolucyjnej możemy dodać kolejną. Użyjmy warstwy max
+pooling:</p>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuYGBgclxuMTMgKiAxMyAqIDMyICMgQ2hlY2sgZGltbWVudGlvbnMgb2YgcHJldmlvdXMgbGF5ZXJcbmBgYFxuYGBgXG5gYGAifQ== -->
+<pre class="r"><code>```r
+```r
+13 * 13 * 32 # Check dimmentions of previous layer</code></pre>
+<pre><code></code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 <p>Dlaczego output ma kształt (None, 12, 12, 32) ?</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuYGBgclxuYGBgclxuMjYgLyAyICMgMjYgLSBpbnB1dCBvZiB0aGUgYWN0aXZhdGlvbiBtYXAgc2hhcGUsIDIgLSBwb29sIHNpemVcbmBgYFxuYGBgXG5gYGBcbmBgYCJ9 -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuaGlzdG9yeSA8LSBmbW5pc3RfbW9kZWwxICU+JSBmaXQoXG4gIGZhc2hpb25fbW5pc3RfdHJhaW5fWCxcbiAgZmFzaGlvbl9tbmlzdF90cmFpbl9ZLFxuICBiYXRjaF9zaXplID0gMTI4LFxuICBlcG9jaHMgPSAzMCxcbiAgdmFsaWRhdGlvbl9zcGxpdCA9IDAuMixcbiAgY2FsbGJhY2tzID0gYyhjYWxsYmFja19tb2RlbF9jaGVja3BvaW50KG1vbml0b3IgPSBcXHZhbF9hY2N1cmFjeVxcLFxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgZmlsZXBhdGggPSBcXG1vZGVscy9mbW5pc3RfbW9kZWwxLmhkZjVcXCxcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHNhdmVfYmVzdF9vbmx5ID0gVFJVRSkpXG4pIFxuYGBgXG5gYGAifQ== -->
 <pre class="r"><code>```r
-```r
-```r
-26 / 2 # 26 - input of the activation map shape, 2 - pool size</code></pre>
-<pre><code></code></pre>
+history &lt;- fmnist_model1 %&gt;% fit(
+  fashion_mnist_train_X,
+  fashion_mnist_train_Y,
+  batch_size = 128,
+  epochs = 30,
+  validation_split = 0.2,
+  callbacks = c(callback_model_checkpoint(monitor = \val_accuracy\,
+                                          filepath = \models/fmnist_model1.hdf5\,
+                                          save_best_only = TRUE))
+) </code></pre>
 <pre><code>
 &lt;!-- rnb-source-end --&gt;
 
@@ -1979,70 +2060,75 @@ Powiedzmy, że chcemy dokończyć naszą architekturę i dodać warstwę wyjści
 &lt;!-- rnb-chunk-begin --&gt;
 
 
-&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm1uaXN0X21vZGVsMSAlPiVcbiAgIyBUZW5zb3IgZmxhdHRlbmluZyBpbnRvIHZlY3RvciBmb3JtXG4gIGxheWVyX2ZsYXR0ZW4oKSAlPiVcbiAgIyBPdXRwdXQgbGF5ZXIgLSAxMCBjbGFzc2VzLCBzb2Z0bWF4IGFjdGl2YXRpb25cbiAgbGF5ZXJfZGVuc2UodW5pdHMgPSAxMCwgYWN0aXZhdGlvbiA9ICdzb2Z0bWF4JylcblxuZm1uaXN0X21vZGVsMVxuYGBgIn0= --&gt;
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuZm1uaXN0X21vZGVsMSAlPiUgZXZhbHVhdGUoZmFzaGlvbl9tbmlzdF90ZXN0X1gsIGZhc2hpb25fbW5pc3RfdGVzdF9ZKVxuYGBgXG5gYGAifQ== --&gt;
 
 ```r
-fmnist_model1 %&gt;%
-  # Tensor flattening into vector form
-  layer_flatten() %&gt;%
-  # Output layer - 10 classes, softmax activation
-  layer_dense(units = 10, activation = &#39;softmax&#39;)
+```r
+fmnist_model1 %&gt;% evaluate(fashion_mnist_test_X, fashion_mnist_test_Y)</code></pre>
+<pre><code>
+&lt;!-- rnb-source-end --&gt;
 
-fmnist_model1</code></pre>
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+
+Dlaczego output ma kształt (None, 5408) ?
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuYGBgclxuYGBgclxuYGBgclxuIyBFeC4gRXhwYW5kIG1vZGVsIGJ5IGFkZGluZyBiYXRjaCBub3JtYWxpemF0aW9uLiBBZGQgZWFybHkgc3RvcHBpbmcgYW5kIFRlbnNvcmJvYXJkIGNhbGxiYWNrcy5cbiMgMS4gTW9kZWwgYXJjaGl0ZWN0dXJlOlxuIyAyRCBjb252b2x1dGlvbiB3aXRoIDY0IGZpbHRlcnMgb2Ygc2l6ZSAzeDMsIDF4MSBzdHJpZGUsICdsaW5lYXInIGFjdGl2YXRpb24sIFxcc2FtZVxcIHBhZGRpbmdcbiMgQmF0Y2ggbm9ybWFsaXphdGlvbiBsYXllclxuIyBcXHJlbHVcXCBhY3RpdmF0aW9uIGxheWVyXG4jIDJEIG1heCBwb29saW5nIHNpemUgMngyLCAyeDIgc3RyaWRlXG4jIGRyb3BvdXQgbGF5ZXIgd2l0aCAyNSUgZHJvcCByYXRlXG4jIEZsYXR0ZW5pbmcgbGF5ZXJcbiMgZGVuc2UgbGF5ZXIgd2l0aCA1MTIgbmV1cm9ucyBhbmQgXFxyZWx1XFwgYWN0aXZhdGlvblxuIyBkcm9wb3V0IGxheWVyIHdpdGggMjUlIGRyb3AgcmF0ZVxuIyBDaG9vc2UgY29ycmVjdCBsYXllciBhcyBvdXRwdXRcblxuIyAyLiBDb21waWxlIG1vZGVsIHdpdGggQWRhbWF4IG9wdGltaXplciAtIHNldCBsZWFybmluZyByYXRlIDAuMDAwMSwgZGVjYXkgPSAxZS02LlxuXG4jIDMuIEZpdCB0aGUgbW9kZWwgLSBiZXNpZGUgc3RhbmRhcnQgc2V0dGluZ3MgYWRkIGNhbGxiYWNrczpcbiMgbW9kZWwgY2hlY2twb2ludCAtIHNhdmUgbW9kZWwgYXMgXFxmbW5pc3RfbW9kZWwyLmhkZjVcXCBpbiBcXG1vZGVsc1xcIGZvbGRlclxuIyBlYXJseSBzdG9wcGluZyAtIHdpbGwgc3RvcCB0cmFpbmluZyBpZiB0aGVyZSdzIG5vIHByb2dyZXNzIChtb25pdG9yIFxcdmFsX2xvc3NcXCBhbmQgZG9uJ3Qgd2FpdCBtb3JlIHRoYW4gNSBlcG9jaHMpXG4jIHRlbnNvcmJvYXJkIC0gc2F2ZSBsb2dzIHRvIHRlbnNvcmJvYXJkIGluIFxcdGVuc29yYm9hcmRcXCBmb2xkZXIgLSBjYWxsYmFja190ZW5zb3Jib2FyZFxuXG4jIDQuIEV2YWx1YXRlIHRoZSBtb2RlbCBvbiB0ZXN0IHNldFxuYGBgXG5gYGBcbmBgYFxuYGBgXG5gYGAifQ== --&gt;
+
+```r
+```r
+```r
+```r
+```r
+# Ex. Expand model by adding batch normalization. Add early stopping and Tensorboard callbacks.
+# 1. Model architecture:
+# 2D convolution with 64 filters of size 3x3, 1x1 stride, &#39;linear&#39; activation, \same\ padding
+# Batch normalization layer
+# \relu\ activation layer
+# 2D max pooling size 2x2, 2x2 stride
+# dropout layer with 25% drop rate
+# Flattening layer
+# dense layer with 512 neurons and \relu\ activation
+# dropout layer with 25% drop rate
+# Choose correct layer as output
+
+# 2. Compile model with Adamax optimizer - set learning rate 0.0001, decay = 1e-6.
+
+# 3. Fit the model - beside standart settings add callbacks:
+# model checkpoint - save model as \fmnist_model2.hdf5\ in \models\ folder
+# early stopping - will stop training if there&#39;s no progress (monitor \val_loss\ and don&#39;t wait more than 5 epochs)
+# tensorboard - save logs to tensorboard in \tensorboard\ folder - callback_tensorboard
+
+# 4. Evaluate the model on test set</code></pre>
+<pre><code></code></pre>
+<pre><code></code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
-<p>Dlaczego output ma kształt (None, 5408) ?</p>
+<p>Dlaczego mamy 54090 parametrów do trenowania w warstwie
+wyjściowej?</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuMTMgKiAxMyAqIDMyICMgQ2hlY2sgZGltbWVudGlvbnMgb2YgcHJldmlvdXMgbGF5ZXJcbmBgYFxuYGBgIn0= -->
-<pre class="r"><code>```r
-13 * 13 * 32 # Check dimmentions of previous layer</code></pre>
-<pre><code>
-&lt;!-- rnb-source-end --&gt;
-
-&lt;!-- rnb-chunk-end --&gt;
-
-
-&lt;!-- rnb-text-begin --&gt;
-
-
-Dlaczego mamy 54090 parametrów do trenowania w warstwie wyjściowej?
-
-
-&lt;!-- rnb-text-end --&gt;
-
-
-&lt;!-- rnb-chunk-begin --&gt;
-
-
-&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuNTQwOCAqIDEwICsgMTAgIyA1NDA4IC0gZnJvbSBsYXllcl9mbGF0dGVuICogMTAgbmV1cm9ucyArIGJpYXNlc1xuYGBgXG5gYGAifQ== --&gt;
-
-```r
-```r
-5408 * 10 + 10 # 5408 - from layer_flatten * 10 neurons + biases</code></pre>
-<pre><code>
-&lt;!-- rnb-source-end --&gt;
-
-&lt;!-- rnb-chunk-end --&gt;
-
-
-&lt;!-- rnb-text-begin --&gt;
-
-
-Architertura CNN jest ukończona, możemy teraz skompilować model:
-
-
-&lt;!-- rnb-text-end --&gt;
-
-
-&lt;!-- rnb-chunk-begin --&gt;
-
-
-&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm1uaXN0X21vZGVsMSAlPiUgY29tcGlsZShcbiAgbG9zcyA9IFwiY2F0ZWdvcmljYWxfY3Jvc3NlbnRyb3B5XCIsXG4gIG9wdGltaXplciA9IG9wdGltaXplcl9hZGFkZWx0YSgpLFxuICBtZXRyaWNzID0gYygnYWNjdXJhY3knKVxuKVxuYGBgIn0= --&gt;
-
-```r
-fmnist_model1 %&gt;% compile(
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuNTQwOCAqIDEwICsgMTAgIyA1NDA4IC0gZnJvbSBsYXllcl9mbGF0dGVuICogMTAgbmV1cm9ucyArIGJpYXNlc1xuYGBgIn0= -->
+<pre class="r"><code>5408 * 10 + 10 # 5408 - from layer_flatten * 10 neurons + biases</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<p>Architertura CNN jest ukończona, możemy teraz skompilować model:</p>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm1uaXN0X21vZGVsMSAlPiUgY29tcGlsZShcbiAgbG9zcyA9IFwiY2F0ZWdvcmljYWxfY3Jvc3NlbnRyb3B5XCIsXG4gIG9wdGltaXplciA9IG9wdGltaXplcl9hZGFkZWx0YSgpLFxuICBtZXRyaWNzID0gYygnYWNjdXJhY3knKVxuKVxuYGBgIn0= -->
+<pre class="r"><code>fmnist_model1 %&gt;% compile(
   loss = &quot;categorical_crossentropy&quot;,
   optimizer = optimizer_adadelta(),
   metrics = c(&#39;accuracy&#39;)
@@ -2078,38 +2164,70 @@ fmnist_model1 %&gt;% compile(
 <p>Czas na stworzenie bardziej zaawansowanej wersji tego modelu:</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuYGBgclxuYGBgclxuIyBFeC4gRXhwYW5kIG1vZGVsIGJ5IGFkZGluZyBiYXRjaCBub3JtYWxpemF0aW9uLiBBZGQgZWFybHkgc3RvcHBpbmcgYW5kIFRlbnNvcmJvYXJkIGNhbGxiYWNrcy5cbiMgMS4gTW9kZWwgYXJjaGl0ZWN0dXJlOlxuIyAyRCBjb252b2x1dGlvbiB3aXRoIDY0IGZpbHRlcnMgb2Ygc2l6ZSAzeDMsIDF4MSBzdHJpZGUsICdsaW5lYXInIGFjdGl2YXRpb24sIFxcc2FtZVxcIHBhZGRpbmdcbiMgQmF0Y2ggbm9ybWFsaXphdGlvbiBsYXllclxuIyBcXHJlbHVcXCBhY3RpdmF0aW9uIGxheWVyXG4jIDJEIG1heCBwb29saW5nIHNpemUgMngyLCAyeDIgc3RyaWRlXG4jIGRyb3BvdXQgbGF5ZXIgd2l0aCAyNSUgZHJvcCByYXRlXG4jIEZsYXR0ZW5pbmcgbGF5ZXJcbiMgZGVuc2UgbGF5ZXIgd2l0aCA1MTIgbmV1cm9ucyBhbmQgXFxyZWx1XFwgYWN0aXZhdGlvblxuIyBkcm9wb3V0IGxheWVyIHdpdGggMjUlIGRyb3AgcmF0ZVxuIyBDaG9vc2UgY29ycmVjdCBsYXllciBhcyBvdXRwdXRcblxuIyAyLiBDb21waWxlIG1vZGVsIHdpdGggQWRhbWF4IG9wdGltaXplciAtIHNldCBsZWFybmluZyByYXRlIDAuMDAwMSwgZGVjYXkgPSAxZS02LlxuXG4jIDMuIEZpdCB0aGUgbW9kZWwgLSBiZXNpZGUgc3RhbmRhcnQgc2V0dGluZ3MgYWRkIGNhbGxiYWNrczpcbiMgbW9kZWwgY2hlY2twb2ludCAtIHNhdmUgbW9kZWwgYXMgXFxmbW5pc3RfbW9kZWwyLmhkZjVcXCBpbiBcXG1vZGVsc1xcIGZvbGRlclxuIyBlYXJseSBzdG9wcGluZyAtIHdpbGwgc3RvcCB0cmFpbmluZyBpZiB0aGVyZSdzIG5vIHByb2dyZXNzIChtb25pdG9yIFxcdmFsX2xvc3NcXCBhbmQgZG9uJ3Qgd2FpdCBtb3JlIHRoYW4gNSBlcG9jaHMpXG4jIHRlbnNvcmJvYXJkIC0gc2F2ZSBsb2dzIHRvIHRlbnNvcmJvYXJkIGluIFxcdGVuc29yYm9hcmRcXCBmb2xkZXIgLSBjYWxsYmFja190ZW5zb3Jib2FyZFxuXG4jIDQuIEV2YWx1YXRlIHRoZSBtb2RlbCBvbiB0ZXN0IHNldFxuYGBgXG5gYGBcbmBgYFxuYGBgIn0= -->
-<pre class="r"><code>```r
-```r
-```r
-# Ex. Expand model by adding batch normalization. Add early stopping and Tensorboard callbacks.
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBFeC4gRXhwYW5kIG1vZGVsIGJ5IGFkZGluZyBiYXRjaCBub3JtYWxpemF0aW9uLiBBZGQgZWFybHkgc3RvcHBpbmcgYW5kIFRlbnNvcmJvYXJkIGNhbGxiYWNrcy5cbiMgMS4gTW9kZWwgYXJjaGl0ZWN0dXJlOlxuIyAyRCBjb252b2x1dGlvbiB3aXRoIDY0IGZpbHRlcnMgb2Ygc2l6ZSAzeDMsIDF4MSBzdHJpZGUsICdsaW5lYXInIGFjdGl2YXRpb24sIFwic2FtZVwiIHBhZGRpbmdcbiMgQmF0Y2ggbm9ybWFsaXphdGlvbiBsYXllclxuIyBcInJlbHVcIiBhY3RpdmF0aW9uIGxheWVyXG4jIDJEIG1heCBwb29saW5nIHNpemUgMngyLCAyeDIgc3RyaWRlXG4jIGRyb3BvdXQgbGF5ZXIgd2l0aCAyNSUgZHJvcCByYXRlXG4jIEZsYXR0ZW5pbmcgbGF5ZXJcbiMgZGVuc2UgbGF5ZXIgd2l0aCA1MTIgbmV1cm9ucyBhbmQgXCJyZWx1XCIgYWN0aXZhdGlvblxuIyBkcm9wb3V0IGxheWVyIHdpdGggMjUlIGRyb3AgcmF0ZVxuIyBDaG9vc2UgY29ycmVjdCBsYXllciBhcyBvdXRwdXRcblxuIyAyLiBDb21waWxlIG1vZGVsIHdpdGggQWRhZGVsdGEgb3B0aW1pemVyIC0gc2V0IGxlYXJuaW5nIHJhdGUgMC4wMSwgZGVjYXkgPSAxZS02LlxuXG4jIDMuIEZpdCB0aGUgbW9kZWwgLSBiZXNpZGUgc3RhbmRhcnQgc2V0dGluZ3MgYWRkIGNhbGxiYWNrczpcbiMgbW9kZWwgY2hlY2twb2ludCAtIHNhdmUgbW9kZWwgYXMgXCJmbW5pc3RfbW9kZWwyLmhkZjVcIiBpbiBcIm1vZGVsc1wiIGZvbGRlclxuIyBlYXJseSBzdG9wcGluZyAtIHdpbGwgc3RvcCB0cmFpbmluZyBpZiB0aGVyZSdzIG5vIHByb2dyZXNzIChtb25pdG9yIFwidmFsX2FjY3VyYWN5XCIgYW5kIGRvbid0IHdhaXQgbW9yZSB0aGFuIDUgZXBvY2hzKVxuIyB0ZW5zb3Jib2FyZCAtIHNhdmUgbG9ncyB0byB0ZW5zb3Jib2FyZCBpbiBcInRlbnNvcmJvYXJkXCIgZm9sZGVyIC0gY2FsbGJhY2tfdGVuc29yYm9hcmRcblxuIyA0LiBFdmFsdWF0ZSB0aGUgbW9kZWwgb24gdGVzdCBzZXRcblxuZm1uaXN0X21vZGVsMiA8LSBrZXJhc19tb2RlbF9zZXF1ZW50aWFsKCkgJT4lXG4gIGxheWVyX2NvbnZfMmQoXG4gICAgZmlsdGVyID0gNjQsIGtlcm5lbF9zaXplID0gYygzLCAzKSwgcGFkZGluZyA9IFwic2FtZVwiLFxuICAgIGlucHV0X3NoYXBlID0gYygyOCwgMjgsIDEpLCBhY3RpdmF0aW9uID0gXCJsaW5lYXJcIikgJT4lXG4gIGxheWVyX2JhdGNoX25vcm1hbGl6YXRpb24oKSAlPiVcbiAgbGF5ZXJfYWN0aXZhdGlvbihcInJlbHVcIikgJT4lXG4gIGxheWVyX21heF9wb29saW5nXzJkKHBvb2xfc2l6ZSA9IGMoMiwgMiksIHN0cmlkZXMgPSBjKDIsIDIpKSAlPiVcbiAgbGF5ZXJfZHJvcG91dCgwLjI1KSAlPiVcbiAgbGF5ZXJfZmxhdHRlbigpICU+JVxuICBsYXllcl9kZW5zZSg1MTIsIGFjdGl2YXRpb24gPSBcInJlbHVcIikgJT4lXG4gIGxheWVyX2Ryb3BvdXQoMC4yNSkgJT4lXG4gIGxheWVyX2RlbnNlKDEwLCBhY3RpdmF0aW9uID0gXCJzb2Z0bWF4XCIpXG5cbmZtbmlzdF9tb2RlbDIgJT4lIGNvbXBpbGUoXG4gIGxvc3MgPSBcImNhdGVnb3JpY2FsX2Nyb3NzZW50cm9weVwiLFxuICBvcHRpbWl6ZXIgPSBvcHRpbWl6ZXJfYWRhZGVsdGEobGVhcm5pbmdfcmF0ZSA9IDAuMDEsIGRlY2F5ID0gMWUtNiksXG4gIG1ldHJpY3MgPSBcImFjY3VyYWN5XCJcbilcblxuaWYgKCFkaXIuZXhpc3RzKFwidGVuc29yYm9hcmRcIikpIGRpci5jcmVhdGUoXCJ0ZW5zb3Jib2FyZFwiKVxuaGlzdG9yeSA8LSBmbW5pc3RfbW9kZWwyICU+JSBmaXQoXG4gIGZhc2hpb25fbW5pc3RfdHJhaW5fWCxcbiAgZmFzaGlvbl9tbmlzdF90cmFpbl9ZLFxuICBiYXRjaF9zaXplID0gMTI4LFxuICBlcG9jaHMgPSAxMCxcbiAgdmFsaWRhdGlvbl9zcGxpdCA9IDAuMixcbiAgY2FsbGJhY2tzID0gYyhjYWxsYmFja19tb2RlbF9jaGVja3BvaW50KG1vbml0b3IgPSBcInZhbF9hY2N1cmFjeVwiLFxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgZmlsZXBhdGggPSBcIm1vZGVscy9mbW5pc3RfbW9kZWwyLmhkZjVcIixcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHNhdmVfYmVzdF9vbmx5ID0gVFJVRSksXG4gICAgICAgICAgICAgICAgY2FsbGJhY2tfZWFybHlfc3RvcHBpbmcobW9uaXRvciA9IFwidmFsX2FjY3VyYWN5XCIsIHBhdGllbmNlID0gNSksXG4gICAgICAgICAgICAgICAgY2FsbGJhY2tfdGVuc29yYm9hcmQobG9nX2RpciA9IFwidGVuc29yYm9hcmRcIikpXG4pXG5cbnRlbnNvcmJvYXJkKFwidGVuc29yYm9hcmRcIilcblxuZm1uaXN0X21vZGVsMiAlPiUgZXZhbHVhdGUoZmFzaGlvbl9tbmlzdF90ZXN0X1gsIGZhc2hpb25fbW5pc3RfdGVzdF9ZKVxuYGBgIn0= -->
+<pre class="r"><code># Ex. Expand model by adding batch normalization. Add early stopping and Tensorboard callbacks.
 # 1. Model architecture:
-# 2D convolution with 64 filters of size 3x3, 1x1 stride, &#39;linear&#39; activation, \same\ padding
+# 2D convolution with 64 filters of size 3x3, 1x1 stride, &#39;linear&#39; activation, &quot;same&quot; padding
 # Batch normalization layer
-# \relu\ activation layer
+# &quot;relu&quot; activation layer
 # 2D max pooling size 2x2, 2x2 stride
 # dropout layer with 25% drop rate
 # Flattening layer
-# dense layer with 512 neurons and \relu\ activation
+# dense layer with 512 neurons and &quot;relu&quot; activation
 # dropout layer with 25% drop rate
 # Choose correct layer as output
 
-# 2. Compile model with Adamax optimizer - set learning rate 0.0001, decay = 1e-6.
+# 2. Compile model with Adadelta optimizer - set learning rate 0.01, decay = 1e-6.
 
 # 3. Fit the model - beside standart settings add callbacks:
-# model checkpoint - save model as \fmnist_model2.hdf5\ in \models\ folder
-# early stopping - will stop training if there&#39;s no progress (monitor \val_loss\ and don&#39;t wait more than 5 epochs)
-# tensorboard - save logs to tensorboard in \tensorboard\ folder - callback_tensorboard
+# model checkpoint - save model as &quot;fmnist_model2.hdf5&quot; in &quot;models&quot; folder
+# early stopping - will stop training if there&#39;s no progress (monitor &quot;val_accuracy&quot; and don&#39;t wait more than 5 epochs)
+# tensorboard - save logs to tensorboard in &quot;tensorboard&quot; folder - callback_tensorboard
 
-# 4. Evaluate the model on test set</code></pre>
-<pre><code></code></pre>
-<p>```</p>
+# 4. Evaluate the model on test set
+
+fmnist_model2 &lt;- keras_model_sequential() %&gt;%
+  layer_conv_2d(
+    filter = 64, kernel_size = c(3, 3), padding = &quot;same&quot;,
+    input_shape = c(28, 28, 1), activation = &quot;linear&quot;) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_activation(&quot;relu&quot;) %&gt;%
+  layer_max_pooling_2d(pool_size = c(2, 2), strides = c(2, 2)) %&gt;%
+  layer_dropout(0.25) %&gt;%
+  layer_flatten() %&gt;%
+  layer_dense(512, activation = &quot;relu&quot;) %&gt;%
+  layer_dropout(0.25) %&gt;%
+  layer_dense(10, activation = &quot;softmax&quot;)
+
+fmnist_model2 %&gt;% compile(
+  loss = &quot;categorical_crossentropy&quot;,
+  optimizer = optimizer_adadelta(learning_rate = 0.01, decay = 1e-6),
+  metrics = &quot;accuracy&quot;
+)
+
+if (!dir.exists(&quot;tensorboard&quot;)) dir.create(&quot;tensorboard&quot;)
+history &lt;- fmnist_model2 %&gt;% fit(
+  fashion_mnist_train_X,
+  fashion_mnist_train_Y,
+  batch_size = 128,
+  epochs = 10,
+  validation_split = 0.2,
+  callbacks = c(callback_model_checkpoint(monitor = &quot;val_accuracy&quot;,
+                                          filepath = &quot;models/fmnist_model2.hdf5&quot;,
+                                          save_best_only = TRUE),
+                callback_early_stopping(monitor = &quot;val_accuracy&quot;, patience = 5),
+                callback_tensorboard(log_dir = &quot;tensorboard&quot;))
+)
+
+tensorboard(&quot;tensorboard&quot;)
+
+fmnist_model2 %&gt;% evaluate(fashion_mnist_test_X, fashion_mnist_test_Y)</code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 <!-- rnb-text-end -->
 
-<div id="rmd-source-code">LS0tCnRpdGxlOiAicGFydCBJViAtIENvbnZvbHV0aW9uYWwgTmV1cmFsIE5ldHdvcmtzIgphdXRob3I6ICJNaWNoYcWCIE1haiIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKYGBge3IgcGFja2FnZXN9CmxpYnJhcnkoa2VyYXMpCmxpYnJhcnkodGlkeXZlcnNlKQpsaWJyYXJ5KGdyaWQpCmxpYnJhcnkoZ3JpZEV4dHJhKQpgYGAKClphbmltIHpidWR1amVteSBDTk4gdyBLZXJhcywgbXVzaW15IHpyb3p1bWllxIcga29ud29sdWNqxJkgaSBwb29saW5nLiBaYcWCYWR1aiBvYnJheiDigJ5kYXRhL3plYnJhLmpwZ+KAnQoKYGBge3IgaW1hZ2VfbG9hZH0KemVicmEgPC0gaW1hZ2VfbG9hZCgiZGF0YS96ZWJyYS5qcGciLCBncmF5c2NhbGUgPSBUUlVFLCB0YXJnZXRfc2l6ZSA9IGMoMjAwLCAzMDApKSAlPiUKICBpbWFnZV90b19hcnJheSgpICU+JSBgL2AoMjU1KQppbWFnZSh0KHplYnJhWywgLCAxXSlbLCBucm93KHplYnJhKToxXSwgY29sID0gZ3JleShzZXEoMCwgMSwgbGVuZ3RoID0gMjU2KSksIGF4ZXMgPSBGKQpgYGAKClRlcmF6IG1vxbxlbXkgemFpbXBsZW1lbnRvd2HEhyBwcm9zdMSFIGtvbndvbHVjasSZOgoKYGBge3IgMmRfY29udm9sdXRpb259CnNvYmVsX2ZpbHRlcl94IDwtIG1hdHJpeChjKDEsIDIsIDEsIDAsIDAsIDAsIC0xLCAtMiwgLTEpLCAzLCAzLCBieXJvdyA9IEZBTFNFKQoKa2VybmVsX3NoYXBlIDwtIDMKcGFkZGluZyA8LSAwCnN0cmlkZSA8LSAxCmlucHV0X2hlaWdodCA8LSBucm93KHplYnJhKQppbnB1dF93aWR0aCA8LSBuY29sKHplYnJhKQphY3RpdmF0aW9uX21hcF9oZWlnaHQgPC0gKGlucHV0X2hlaWdodCArIDIgKiBwYWRkaW5nIC0ga2VybmVsX3NoYXBlKSAvIHN0cmlkZSArIDEKYWN0aXZhdGlvbl9tYXBfd2lkdGggPC0gKGlucHV0X3dpZHRoICsgMiAqIHBhZGRpbmcgLSBrZXJuZWxfc2hhcGUpIC8gc3RyaWRlICsgMQphY3RpdmF0aW9uX21hcCA8LSBtYXRyaXgoMCwgbnJvdyA9IGFjdGl2YXRpb25fbWFwX2hlaWdodCwgbmNvbCA9IGFjdGl2YXRpb25fbWFwX3dpZHRoKQoKZm9yICh3IGluIDE6bmNvbChhY3RpdmF0aW9uX21hcCkpIHsKICBmb3IgKGggaW4gMTpucm93KGFjdGl2YXRpb25fbWFwKSkgewogICAgYWN0aXZhdGlvbl9tYXBbaCwgd10gPC0gc3VtKHNvYmVsX2ZpbHRlcl94ICogemVicmFbaDooaCArIGtlcm5lbF9zaGFwZSAtIDEpLCB3Oih3ICsga2VybmVsX3NoYXBlIC0gMSksIDFdKQogIH0KfQoKaW1hZ2UodChhY3RpdmF0aW9uX21hcClbLCBucm93KGFjdGl2YXRpb25fbWFwKToxXSwgY29sID0gZ3JleShzZXEoMCwgMSwgbGVuZ3RoID0gMjU2KSksIGF4ZXMgPSBGKQpgYGAKCm9yYXogcG9vbGluZzoKCmBgYHtyIDJkX21heF9wb29saW5nfQpwb29sX3NoYXBlIDwtIDIKcG9vbF9zdHJpZGUgPC0gMgphY3RpdmF0aW9uX21hcDJfaGVpZ2h0IDwtIGFjdGl2YXRpb25fbWFwX2hlaWdodCAvIHBvb2xfc2hhcGUKYWN0aXZhdGlvbl9tYXAyX3dpZHRoIDwtIGFjdGl2YXRpb25fbWFwX3dpZHRoIC8gcG9vbF9zaGFwZQphY3RpdmF0aW9uX21hcDIgPC0gbWF0cml4KDAsIG5yb3cgPSBhY3RpdmF0aW9uX21hcDJfaGVpZ2h0LCBuY29sID0gYWN0aXZhdGlvbl9tYXAyX3dpZHRoKQoKZm9yICh3IGluIDE6bmNvbChhY3RpdmF0aW9uX21hcDIpKSB7CiAgZm9yIChoIGluIDE6bnJvdyhhY3RpdmF0aW9uX21hcDIpKSB7CiAgICBhY3RpdmF0aW9uX21hcDJbaCwgd10gPC0gbWF4KGFjdGl2YXRpb25fbWFwWygyICogKGggLSAxKSArIDEpOigoMiAqIChoIC0gMSkgKyAxKSArIHBvb2xfc2hhcGUgLSAxKSwgKDIgKiAodyAtIDEpICsgMSk6KCgyICogKHcgLSAxKSArIDEpICsgcG9vbF9zaGFwZSAtIDEpXSkKICB9Cn0KCmltYWdlKHQoYWN0aXZhdGlvbl9tYXAyKVssIG5yb3coYWN0aXZhdGlvbl9tYXAyKToxXSwgY29sID0gZ3JleShzZXEoMCwgMSwgbGVuZ3RoID0gMjU2KSksIGF4ZXMgPSBGKQpgYGAKClphY3puaWVteSBvZCB6YnVkb3dhbmlhIHByb3N0ZWdvIENOTiBkbGEgemJpb3J1IGRhbnljaCBkb3R5Y3rEhWN5Y2ggbW9keS4gTmEgcGllcndzenltIHNwb3RrYW5pdSBzdHdvcnp5bGnFm215IE1MUCBkbyB0ZWdvIHphZGFuaWEuIFphxYJhZHVqbXkgemJpw7NyIGRhbnljaDoKCmBgYHtyIGZhc2hpb25fbW5pc3R9CmxvYWQoImRhdGEvZmFzaGlvbl9tbmlzdC5SRGF0YSIpCnh5X2F4aXMgPC0gZGF0YS5mcmFtZSh4ID0gZXhwYW5kLmdyaWQoMToyOCwgMjg6MSlbLCAxXSwKICAgICAgICAgICAgICAgICAgICAgIHkgPSBleHBhbmQuZ3JpZCgxOjI4LCAyODoxKVssIDJdKQpwbG90X3RoZW1lIDwtIGxpc3QoCiAgcmFzdGVyID0gZ2VvbV9yYXN0ZXIoaGp1c3QgPSAwLCB2anVzdCA9IDApLAogIGdyYWRpZW50X2ZpbGwgPSBzY2FsZV9maWxsX2dyYWRpZW50KGxvdyA9ICJ3aGl0ZSIsIGhpZ2ggPSAiYmxhY2siLCBndWlkZSA9ICJub25lIiksCiAgdGhlbWUgPSB0aGVtZV92b2lkKCkKKQoKc2FtcGxlX3Bsb3RzIDwtIHNhbXBsZSgxOm5yb3coZmFzaGlvbl9tbmlzdF90cmFpbl9YKSwgMTAwKSAlPiUgbWFwKH4gewogIHBsb3RfZGF0YSA8LSBjYmluZCh4eV9heGlzLCBmaWxsID0gZGF0YS5mcmFtZShmaWxsID0gZmFzaGlvbl9tbmlzdF90cmFpbl9YWy54LCBdKSkKICBnZ3Bsb3QocGxvdF9kYXRhLCBhZXMoeCwgeSwgZmlsbCA9IGZpbGwpKSArIHBsb3RfdGhlbWUKfSkKCmRvLmNhbGwoImdyaWQuYXJyYW5nZSIsIGMoc2FtcGxlX3Bsb3RzLCBuY29sID0gMTAsIG5yb3cgPSAxMCkpCmBgYAoKQWJ5IHByemVzxYJhxIcgZGFuZSBkbyBtb2RlbHUgQ05OIHcga2VyYXMsIG11c2lteSBwcnpla3N6dGHFgmNpxIcgbmFzemUgamUgdyBvZHBvd2llZG5pZSB0ZW5zb3J5LiBQb2RvYm5pZSBqYWsgdyBwcnp5cGFka3UgTUxQIG11c2lteSBwcnpla3N6dGHFgmNpxIcgd2VrdG9yIGV0eWtpZXQgZG8gbWFjaWVyenkgeiBrb2Rvd2FuaWVtIG9uZS1ob3QtZW5jb2RpbmcuIFcgcHJ6eXBhZGt1IG5hc3p5Y2ggb2JyYXrDs3cgbXVzaW15IHByemVkc3Rhd2nEhyBqZSBqYWtvIHRlbnNvciA0LXd5bWlhcm93eSAocHLDs2JraSwgd3lzb2tvxZvEhywgc3plcm9rb8WbxIcsIGthbmHFgnkpLiBNdXNpbXkgcsOzd25pZcW8IHBhbWnEmXRhxIcgbyB6bm9ybWFsaXpvd2FuaXUgd2FydG/Fm2NpIHBpa3NlbGk6CgpgYGB7ciBmYXNoaW9uX21uaXN0X2RhdGF9CmZhc2hpb25fbW5pc3RfdHJhaW5fWSA8LSBmYXNoaW9uX21uaXN0X3RyYWluX1kgJT4lIHRvX2NhdGVnb3JpY2FsKC4sIDEwKQpmYXNoaW9uX21uaXN0X3Rlc3RfWSA8LSBmYXNoaW9uX21uaXN0X3Rlc3RfWSAlPiUgdG9fY2F0ZWdvcmljYWwoLiwgMTApCgpmYXNoaW9uX21uaXN0X3RyYWluX1ggPC0gZmFzaGlvbl9tbmlzdF90cmFpbl9YIC8gMjU1CmZhc2hpb25fbW5pc3RfdGVzdF9YIDwtIGZhc2hpb25fbW5pc3RfdGVzdF9YIC8gMjU1CgpmYXNoaW9uX21uaXN0X3RyYWluX1ggPC0gYXJyYXlfcmVzaGFwZShmYXNoaW9uX21uaXN0X3RyYWluX1gsIGMobnJvdyhmYXNoaW9uX21uaXN0X3RyYWluX1gpLCAyOCwgMjgsIDEpKQpmYXNoaW9uX21uaXN0X3Rlc3RfWCA8LSBhcnJheV9yZXNoYXBlKGZhc2hpb25fbW5pc3RfdGVzdF9YLCBjKG5yb3coZmFzaGlvbl9tbmlzdF90ZXN0X1gpLCAyOCwgMjgsIDEpKQoKZGltKGZhc2hpb25fbW5pc3RfdHJhaW5fWCkKYGBgCgpEYW5lIHPEhSB3IHBvcHJhd25laiBmb3JtaWUgdGVuc29yb3dlaiwgbW/FvGVteSBwcnp5c3TEhXBpxIcgZG8gYnVkb3d5IG1vZGVsdS4gSmFrIHphd3N6ZSBixJlkemllIHRvIG1vZGVsIHNla3dlbmN5am55LiBKYWtvIHBpZXJ3c3rEhSB3YXJzdHfEmSB1xbx5amVteSB3YXJzdHd5IGtvbndvbHVjeWpuZWo6CgpgYGB7ciBmYXNoaW9uX21uaXN0X2NvbnZfbGF5ZXJ9CmZtbmlzdF9tb2RlbDEgPC0ga2VyYXNfbW9kZWxfc2VxdWVudGlhbCgpICU+JQogICMgMkQgY29udm9sdXRpb24sIDMyIGZpbHRlcnMgb2Ygc2l6ZSAzeDMsIGlucHV0IGMoMjgsIDI4LCAxKSAtIGdyYXlzY2FsZQogIGxheWVyX2NvbnZfMmQoZmlsdGVycyA9IDMyLCBrZXJuZWxfc2l6ZSA9IGMoMywgMyksIGFjdGl2YXRpb24gPSAncmVsdScsCiAgICAgICAgICAgICAgICBpbnB1dF9zaGFwZSA9IGMoMjgsIDI4LCAxKSkKZm1uaXN0X21vZGVsMQpgYGAKCkRsYWN6ZWdvIG1hbXkgZG8gd3l0cmVub3dhbmlhIDMyMCBwYXJhbWV0csOzdz8KCmBgYHtyIGZhc2hpb25fbW5pc3RfY29udl9sYXllcl9wYXJhbXN9CjMyICogKDMgKiAzICogMSArIDEpICMgMzIgZmlsdGVycyBvZiBzaXplIDN4Myh4MSkgKyBiaWFzIGZvciBlYWNoIG9mIHRoZW0KYGBgCgpEbGFjemVnbyBvdXRwdXQgbWEga3N6dGHFgnQgKE5vbmUsIDI2LCAyNiwgMzIpID8gCgpgYGB7ciBmYXNoaW9uX21uaXN0X2NvbnZfbGF5ZXJfb3V0cHV0X3NoYXBlfQooKDI4IC0gMyArIDIgKiAwKSAvIDEpICsgMSAjIDI4IC0gaW5wdXQgaW1hZ2Ugc2l6ZSwgMyAtIGtlcm5zbCBzaXplLCAwIC0gcGFkZGluZywgMSAtIHN0cmlkZQpgYGAKClBvIHdhcnN0d2llIGtvbndvbHVjeWpuZWogbW/FvGVteSBkb2RhxIcga29sZWpuxIUuIFXFvHlqbXkgd2Fyc3R3eSBtYXggcG9vbGluZzoKCmBgYHtyIGZhc2hpb25fbW5pc3RfbWF4X3Bvb2xfbGF5ZXJ9CmZtbmlzdF9tb2RlbDEgJT4lCiAgIyAyRCBtYXggcG9vbGluZyBzaXplIDJ4Mih4MSkKICBsYXllcl9tYXhfcG9vbGluZ18yZChwb29sX3NpemUgPSBjKDIsIDIpKQpmbW5pc3RfbW9kZWwxCmBgYAoKRGxhY3plZ28gb3V0cHV0IG1hIGtzenRhxYJ0IChOb25lLCAxMiwgMTIsIDMyKSA/CgpgYGB7ciBmYXNoaW9uX21uaXN0X21heF9wb29sX2xheWVyX291dHB1dF9zaGFwZX0KMjYgLyAyICMgMjYgLSBpbnB1dCBvZiB0aGUgYWN0aXZhdGlvbiBtYXAgc2hhcGUsIDIgLSBwb29sIHNpemUKYGBgCgpQb3dpZWR6bXksIMW8ZSBjaGNlbXkgZG9rb8WEY3p5xIcgbmFzesSFIGFyY2hpdGVrdHVyxJkgaSBkb2RhxIcgd2Fyc3R3xJkgd3lqxZtjaW93xIUuIHpyb2JpbXkgdG8gdyB0YWtpIHNhbSBzcG9zw7NiIGphayB3IE1MUCwgYWxlIHphbmltIHRvIHpyb2JpbXksIG11c2lteSBzcMWCYXN6Y3p5xIcgbmFzesSFIG9zdGF0bmnEhSBtYXDEmSBha3R5d2FjamkgZG8gd2VrdG9yYToKCmBgYHtyIGZhc2hpb25fbW5pc3Rfb3V0cHV0X2xheWVyfQpmbW5pc3RfbW9kZWwxICU+JQogICMgVGVuc29yIGZsYXR0ZW5pbmcgaW50byB2ZWN0b3IgZm9ybQogIGxheWVyX2ZsYXR0ZW4oKSAlPiUKICAjIE91dHB1dCBsYXllciAtIDEwIGNsYXNzZXMsIHNvZnRtYXggYWN0aXZhdGlvbgogIGxheWVyX2RlbnNlKHVuaXRzID0gMTAsIGFjdGl2YXRpb24gPSAnc29mdG1heCcpCgpmbW5pc3RfbW9kZWwxCmBgYAoKRGxhY3plZ28gb3V0cHV0IG1hIGtzenRhxYJ0IChOb25lLCA1NDA4KSA/CgpgYGB7ciBmYXNoaW9uX21uaXN0X2ZsYXR0ZW5fbGF5ZXJfb3V0cHV0X3NoYXBlfQoxMyAqIDEzICogMzIgIyBDaGVjayBkaW1tZW50aW9ucyBvZiBwcmV2aW91cyBsYXllcgpgYGAKCkRsYWN6ZWdvIG1hbXkgNTQwOTAgcGFyYW1ldHLDs3cgZG8gdHJlbm93YW5pYSB3IHdhcnN0d2llIHd5asWbY2lvd2VqPwoKYGBge3IgZmFzaGlvbl9tbmlzdF9vdXRwdXRfbGF5ZXJfb3V0cHV0X3NoYXBlfQo1NDA4ICogMTAgKyAxMCAjIDU0MDggLSBmcm9tIGxheWVyX2ZsYXR0ZW4gKiAxMCBuZXVyb25zICsgYmlhc2VzCmBgYAoKQXJjaGl0ZXJ0dXJhIENOTiBqZXN0IHVrb8WEY3pvbmEsIG1vxbxlbXkgdGVyYXogc2tvbXBpbG93YcSHIG1vZGVsOgoKYGBge3IgZmFzaGlvbl9tbmlzdF9jb21waWxlfQpmbW5pc3RfbW9kZWwxICU+JSBjb21waWxlKAogIGxvc3MgPSAiY2F0ZWdvcmljYWxfY3Jvc3NlbnRyb3B5IiwKICBvcHRpbWl6ZXIgPSBvcHRpbWl6ZXJfYWRhZGVsdGEoKSwKICBtZXRyaWNzID0gYygnYWNjdXJhY3knKQopCmBgYAoKaSBnbyB3eXRyZW5vd2HEhzoKCmBgYHtyIGZhc2hpb25fbW5pc3RfZml0fQpoaXN0b3J5IDwtIGZtbmlzdF9tb2RlbDEgJT4lIGZpdCgKICBmYXNoaW9uX21uaXN0X3RyYWluX1gsCiAgZmFzaGlvbl9tbmlzdF90cmFpbl9ZLAogIGJhdGNoX3NpemUgPSAxMjgsCiAgZXBvY2hzID0gMzAsCiAgdmFsaWRhdGlvbl9zcGxpdCA9IDAuMiwKICBjYWxsYmFja3MgPSBjKGNhbGxiYWNrX21vZGVsX2NoZWNrcG9pbnQobW9uaXRvciA9ICJ2YWxfYWNjdXJhY3kiLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBmaWxlcGF0aCA9ICJtb2RlbHMvZm1uaXN0X21vZGVsMS5oZGY1IiwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgc2F2ZV9iZXN0X29ubHkgPSBUUlVFKSkKKSAKYGBgCgpvcmF6IHpld2FsdW93YcSHIG5hIHpiaW9yemUgdGVzdG93eW06CgpgYGB7ciBmYXNoaW9uX21uaXN0X2V2YWx1YXRlfQpmbW5pc3RfbW9kZWwxICU+JSBldmFsdWF0ZShmYXNoaW9uX21uaXN0X3Rlc3RfWCwgZmFzaGlvbl9tbmlzdF90ZXN0X1kpCmBgYAoKQ3phcyBuYSBzdHdvcnplbmllIGJhcmR6aWVqIHphYXdhbnNvd2FuZWogd2Vyc2ppIHRlZ28gbW9kZWx1OgoKYGBge3IgZmFzaGlvbl9tbmlzdF9leH0KIyBFeC4gRXhwYW5kIG1vZGVsIGJ5IGFkZGluZyBiYXRjaCBub3JtYWxpemF0aW9uLiBBZGQgZWFybHkgc3RvcHBpbmcgYW5kIFRlbnNvcmJvYXJkIGNhbGxiYWNrcy4KIyAxLiBNb2RlbCBhcmNoaXRlY3R1cmU6CiMgMkQgY29udm9sdXRpb24gd2l0aCA2NCBmaWx0ZXJzIG9mIHNpemUgM3gzLCAxeDEgc3RyaWRlLCAnbGluZWFyJyBhY3RpdmF0aW9uLCAic2FtZSIgcGFkZGluZwojIEJhdGNoIG5vcm1hbGl6YXRpb24gbGF5ZXIKIyAicmVsdSIgYWN0aXZhdGlvbiBsYXllcgojIDJEIG1heCBwb29saW5nIHNpemUgMngyLCAyeDIgc3RyaWRlCiMgZHJvcG91dCBsYXllciB3aXRoIDI1JSBkcm9wIHJhdGUKIyBGbGF0dGVuaW5nIGxheWVyCiMgZGVuc2UgbGF5ZXIgd2l0aCA1MTIgbmV1cm9ucyBhbmQgInJlbHUiIGFjdGl2YXRpb24KIyBkcm9wb3V0IGxheWVyIHdpdGggMjUlIGRyb3AgcmF0ZQojIENob29zZSBjb3JyZWN0IGxheWVyIGFzIG91dHB1dAoKIyAyLiBDb21waWxlIG1vZGVsIHdpdGggQWRhZGVsdGEgb3B0aW1pemVyIC0gc2V0IGxlYXJuaW5nIHJhdGUgMC4wMSwgZGVjYXkgPSAxZS02LgoKIyAzLiBGaXQgdGhlIG1vZGVsIC0gYmVzaWRlIHN0YW5kYXJ0IHNldHRpbmdzIGFkZCBjYWxsYmFja3M6CiMgbW9kZWwgY2hlY2twb2ludCAtIHNhdmUgbW9kZWwgYXMgImZtbmlzdF9tb2RlbDIuaGRmNSIgaW4gIm1vZGVscyIgZm9sZGVyCiMgZWFybHkgc3RvcHBpbmcgLSB3aWxsIHN0b3AgdHJhaW5pbmcgaWYgdGhlcmUncyBubyBwcm9ncmVzcyAobW9uaXRvciAidmFsX2FjY3VyYWN5IiBhbmQgZG9uJ3Qgd2FpdCBtb3JlIHRoYW4gNSBlcG9jaHMpCiMgdGVuc29yYm9hcmQgLSBzYXZlIGxvZ3MgdG8gdGVuc29yYm9hcmQgaW4gInRlbnNvcmJvYXJkIiBmb2xkZXIgLSBjYWxsYmFja190ZW5zb3Jib2FyZAoKIyA0LiBFdmFsdWF0ZSB0aGUgbW9kZWwgb24gdGVzdCBzZXQKYGBgCgo=</div>
+<div id="rmd-source-code">LS0tCnRpdGxlOiAicGFydCBJViAtIENvbnZvbHV0aW9uYWwgTmV1cmFsIE5ldHdvcmtzIgphdXRob3I6ICJNaWNoYcWCIE1haiIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKYGBge3IgcGFja2FnZXN9CmxpYnJhcnkoa2VyYXMpCmxpYnJhcnkodGlkeXZlcnNlKQpsaWJyYXJ5KGdyaWQpCmxpYnJhcnkoZ3JpZEV4dHJhKQpgYGAKClphbmltIHpidWR1amVteSBDTk4gdyBLZXJhcywgbXVzaW15IHpyb3p1bWllxIcga29ud29sdWNqxJkgaSBwb29saW5nLiBaYcWCYWR1aiBvYnJheiDigJ5kYXRhL3plYnJhLmpwZ+KAnQoKYGBge3IgaW1hZ2VfbG9hZH0KemVicmEgPC0gaW1hZ2VfbG9hZCgiZGF0YS96ZWJyYS5qcGciLCBncmF5c2NhbGUgPSBUUlVFLCB0YXJnZXRfc2l6ZSA9IGMoMjAwLCAzMDApKSAlPiUKICBpbWFnZV90b19hcnJheSgpICU+JSBgL2AoMjU1KQppbWFnZSh0KHplYnJhWywgLCAxXSlbLCBucm93KHplYnJhKToxXSwgY29sID0gZ3JleShzZXEoMCwgMSwgbGVuZ3RoID0gMjU2KSksIGF4ZXMgPSBGKQpgYGAKClRlcmF6IG1vxbxlbXkgemFpbXBsZW1lbnRvd2HEhyBwcm9zdMSFIGtvbndvbHVjasSZOgoKYGBge3IgMmRfY29udm9sdXRpb259CnNvYmVsX2ZpbHRlcl94IDwtIG1hdHJpeChjKDEsIDIsIDEsIDAsIDAsIDAsIC0xLCAtMiwgLTEpLCAzLCAzLCBieXJvdyA9IEZBTFNFKQoKa2VybmVsX3NoYXBlIDwtIDMKcGFkZGluZyA8LSAwCnN0cmlkZSA8LSAxCmlucHV0X2hlaWdodCA8LSBucm93KHplYnJhKQppbnB1dF93aWR0aCA8LSBuY29sKHplYnJhKQphY3RpdmF0aW9uX21hcF9oZWlnaHQgPC0gKGlucHV0X2hlaWdodCArIDIgKiBwYWRkaW5nIC0ga2VybmVsX3NoYXBlKSAvIHN0cmlkZSArIDEKYWN0aXZhdGlvbl9tYXBfd2lkdGggPC0gKGlucHV0X3dpZHRoICsgMiAqIHBhZGRpbmcgLSBrZXJuZWxfc2hhcGUpIC8gc3RyaWRlICsgMQphY3RpdmF0aW9uX21hcCA8LSBtYXRyaXgoMCwgbnJvdyA9IGFjdGl2YXRpb25fbWFwX2hlaWdodCwgbmNvbCA9IGFjdGl2YXRpb25fbWFwX3dpZHRoKQoKZm9yICh3IGluIDE6bmNvbChhY3RpdmF0aW9uX21hcCkpIHsKICBmb3IgKGggaW4gMTpucm93KGFjdGl2YXRpb25fbWFwKSkgewogICAgYWN0aXZhdGlvbl9tYXBbaCwgd10gPC0gc3VtKHNvYmVsX2ZpbHRlcl94ICogemVicmFbaDooaCArIGtlcm5lbF9zaGFwZSAtIDEpLCB3Oih3ICsga2VybmVsX3NoYXBlIC0gMSksIDFdKQogIH0KfQoKaW1hZ2UodChhY3RpdmF0aW9uX21hcClbLCBucm93KGFjdGl2YXRpb25fbWFwKToxXSwgY29sID0gZ3JleShzZXEoMCwgMSwgbGVuZ3RoID0gMjU2KSksIGF4ZXMgPSBGKQpgYGAKCm9yYXogcG9vbGluZzoKCmBgYHtyIDJkX21heF9wb29saW5nfQpwb29sX3NoYXBlIDwtIDIKcG9vbF9zdHJpZGUgPC0gMgphY3RpdmF0aW9uX21hcDJfaGVpZ2h0IDwtIGFjdGl2YXRpb25fbWFwX2hlaWdodCAvIHBvb2xfc2hhcGUKYWN0aXZhdGlvbl9tYXAyX3dpZHRoIDwtIGFjdGl2YXRpb25fbWFwX3dpZHRoIC8gcG9vbF9zaGFwZQphY3RpdmF0aW9uX21hcDIgPC0gbWF0cml4KDAsIG5yb3cgPSBhY3RpdmF0aW9uX21hcDJfaGVpZ2h0LCBuY29sID0gYWN0aXZhdGlvbl9tYXAyX3dpZHRoKQoKZm9yICh3IGluIDE6bmNvbChhY3RpdmF0aW9uX21hcDIpKSB7CiAgZm9yIChoIGluIDE6bnJvdyhhY3RpdmF0aW9uX21hcDIpKSB7CiAgICBhY3RpdmF0aW9uX21hcDJbaCwgd10gPC0gbWF4KGFjdGl2YXRpb25fbWFwWygyICogKGggLSAxKSArIDEpOigoMiAqIChoIC0gMSkgKyAxKSArIHBvb2xfc2hhcGUgLSAxKSwgKDIgKiAodyAtIDEpICsgMSk6KCgyICogKHcgLSAxKSArIDEpICsgcG9vbF9zaGFwZSAtIDEpXSkKICB9Cn0KCmltYWdlKHQoYWN0aXZhdGlvbl9tYXAyKVssIG5yb3coYWN0aXZhdGlvbl9tYXAyKToxXSwgY29sID0gZ3JleShzZXEoMCwgMSwgbGVuZ3RoID0gMjU2KSksIGF4ZXMgPSBGKQpgYGAKClphY3puaWVteSBvZCB6YnVkb3dhbmlhIHByb3N0ZWdvIENOTiBkbGEgemJpb3J1IGRhbnljaCBkb3R5Y3rEhWN5Y2ggbW9keS4gTmEgcGllcndzenltIHNwb3RrYW5pdSBzdHdvcnp5bGnFm215IE1MUCBkbyB0ZWdvIHphZGFuaWEuIFphxYJhZHVqbXkgemJpw7NyIGRhbnljaDoKCmBgYHtyIGZhc2hpb25fbW5pc3R9CmxvYWQoImRhdGEvZmFzaGlvbl9tbmlzdC5SRGF0YSIpCnh5X2F4aXMgPC0gZGF0YS5mcmFtZSh4ID0gZXhwYW5kLmdyaWQoMToyOCwgMjg6MSlbLCAxXSwKICAgICAgICAgICAgICAgICAgICAgIHkgPSBleHBhbmQuZ3JpZCgxOjI4LCAyODoxKVssIDJdKQpwbG90X3RoZW1lIDwtIGxpc3QoCiAgcmFzdGVyID0gZ2VvbV9yYXN0ZXIoaGp1c3QgPSAwLCB2anVzdCA9IDApLAogIGdyYWRpZW50X2ZpbGwgPSBzY2FsZV9maWxsX2dyYWRpZW50KGxvdyA9ICJ3aGl0ZSIsIGhpZ2ggPSAiYmxhY2siLCBndWlkZSA9ICJub25lIiksCiAgdGhlbWUgPSB0aGVtZV92b2lkKCkKKQoKc2FtcGxlX3Bsb3RzIDwtIHNhbXBsZSgxOm5yb3coZmFzaGlvbl9tbmlzdF90cmFpbl9YKSwgMTAwKSAlPiUgbWFwKH4gewogIHBsb3RfZGF0YSA8LSBjYmluZCh4eV9heGlzLCBmaWxsID0gZGF0YS5mcmFtZShmaWxsID0gZmFzaGlvbl9tbmlzdF90cmFpbl9YWy54LCBdKSkKICBnZ3Bsb3QocGxvdF9kYXRhLCBhZXMoeCwgeSwgZmlsbCA9IGZpbGwpKSArIHBsb3RfdGhlbWUKfSkKCmRvLmNhbGwoImdyaWQuYXJyYW5nZSIsIGMoc2FtcGxlX3Bsb3RzLCBuY29sID0gMTAsIG5yb3cgPSAxMCkpCmBgYAoKQWJ5IHByemVzxYJhxIcgZGFuZSBkbyBtb2RlbHUgQ05OIHcga2VyYXMsIG11c2lteSBwcnpla3N6dGHFgmNpxIcgbmFzemUgamUgdyBvZHBvd2llZG5pZSB0ZW5zb3J5LiBQb2RvYm5pZSBqYWsgdyBwcnp5cGFka3UgTUxQIG11c2lteSBwcnpla3N6dGHFgmNpxIcgd2VrdG9yIGV0eWtpZXQgZG8gbWFjaWVyenkgeiBrb2Rvd2FuaWVtIG9uZS1ob3QtZW5jb2RpbmcuIFcgcHJ6eXBhZGt1IG5hc3p5Y2ggb2JyYXrDs3cgbXVzaW15IHByemVkc3Rhd2nEhyBqZSBqYWtvIHRlbnNvciA0LXd5bWlhcm93eSAocHLDs2JraSwgd3lzb2tvxZvEhywgc3plcm9rb8WbxIcsIGthbmHFgnkpLiBNdXNpbXkgcsOzd25pZcW8IHBhbWnEmXRhxIcgbyB6bm9ybWFsaXpvd2FuaXUgd2FydG/Fm2NpIHBpa3NlbGk6CgpgYGB7ciBmYXNoaW9uX21uaXN0X2RhdGF9CmZhc2hpb25fbW5pc3RfdHJhaW5fWSA8LSBmYXNoaW9uX21uaXN0X3RyYWluX1kgJT4lIHRvX2NhdGVnb3JpY2FsKC4sIDEwKQpmYXNoaW9uX21uaXN0X3Rlc3RfWSA8LSBmYXNoaW9uX21uaXN0X3Rlc3RfWSAlPiUgdG9fY2F0ZWdvcmljYWwoLiwgMTApCgpmYXNoaW9uX21uaXN0X3RyYWluX1ggPC0gZmFzaGlvbl9tbmlzdF90cmFpbl9YIC8gMjU1CmZhc2hpb25fbW5pc3RfdGVzdF9YIDwtIGZhc2hpb25fbW5pc3RfdGVzdF9YIC8gMjU1CgpmYXNoaW9uX21uaXN0X3RyYWluX1ggPC0gYXJyYXlfcmVzaGFwZShmYXNoaW9uX21uaXN0X3RyYWluX1gsIGMobnJvdyhmYXNoaW9uX21uaXN0X3RyYWluX1gpLCAyOCwgMjgsIDEpKQpmYXNoaW9uX21uaXN0X3Rlc3RfWCA8LSBhcnJheV9yZXNoYXBlKGZhc2hpb25fbW5pc3RfdGVzdF9YLCBjKG5yb3coZmFzaGlvbl9tbmlzdF90ZXN0X1gpLCAyOCwgMjgsIDEpKQoKZGltKGZhc2hpb25fbW5pc3RfdHJhaW5fWCkKYGBgCgpEYW5lIHPEhSB3IHBvcHJhd25laiBmb3JtaWUgdGVuc29yb3dlaiwgbW/FvGVteSBwcnp5c3TEhXBpxIcgZG8gYnVkb3d5IG1vZGVsdS4gSmFrIHphd3N6ZSBixJlkemllIHRvIG1vZGVsIHNla3dlbmN5am55LiBKYWtvIHBpZXJ3c3rEhSB3YXJzdHfEmSB1xbx5amVteSB3YXJzdHd5IGtvbndvbHVjeWpuZWo6CgpgYGB7ciBmYXNoaW9uX21uaXN0X2NvbnZfbGF5ZXJ9CmZtbmlzdF9tb2RlbDEgPC0ga2VyYXNfbW9kZWxfc2VxdWVudGlhbCgpICU+JQogICMgMkQgY29udm9sdXRpb24sIDMyIGZpbHRlcnMgb2Ygc2l6ZSAzeDMsIGlucHV0IGMoMjgsIDI4LCAxKSAtIGdyYXlzY2FsZQogIGxheWVyX2NvbnZfMmQoZmlsdGVycyA9IDMyLCBrZXJuZWxfc2l6ZSA9IGMoMywgMyksIGFjdGl2YXRpb24gPSAncmVsdScsCiAgICAgICAgICAgICAgICBpbnB1dF9zaGFwZSA9IGMoMjgsIDI4LCAxKSkKZm1uaXN0X21vZGVsMQpgYGAKCkRsYWN6ZWdvIG1hbXkgZG8gd3l0cmVub3dhbmlhIDMyMCBwYXJhbWV0csOzdz8KCmBgYHtyIGZhc2hpb25fbW5pc3RfY29udl9sYXllcl9wYXJhbXN9CjMyICogKDMgKiAzICogMSArIDEpICMgMzIgZmlsdGVycyBvZiBzaXplIDN4Myh4MSkgKyBiaWFzIGZvciBlYWNoIG9mIHRoZW0KYGBgCgpEbGFjemVnbyBvdXRwdXQgbWEga3N6dGHFgnQgKE5vbmUsIDI2LCAyNiwgMzIpID8gCgpgYGB7ciBmYXNoaW9uX21uaXN0X2NvbnZfbGF5ZXJfb3V0cHV0X3NoYXBlfQooKDI4IC0gMyArIDIgKiAwKSAvIDEpICsgMSAjIDI4IC0gaW5wdXQgaW1hZ2Ugc2l6ZSwgMyAtIGtlcm5zbCBzaXplLCAwIC0gcGFkZGluZywgMSAtIHN0cmlkZQpgYGAKClBvIHdhcnN0d2llIGtvbndvbHVjeWpuZWogbW/FvGVteSBkb2RhxIcga29sZWpuxIUuIFXFvHlqbXkgd2Fyc3R3eSBtYXggcG9vbGluZzoKCmBgYHtyIGZhc2hpb25fbW5pc3RfbWF4X3Bvb2xfbGF5ZXJ9CmZtbmlzdF9tb2RlbDEgJT4lCiAgIyAyRCBtYXggcG9vbGluZyBzaXplIDJ4Mih4MSkKICBsYXllcl9tYXhfcG9vbGluZ18yZChwb29sX3NpemUgPSBjKDIsIDIpKQpmbW5pc3RfbW9kZWwxCmBgYAoKRGxhY3plZ28gb3V0cHV0IG1hIGtzenRhxYJ0IChOb25lLCAxMiwgMTIsIDMyKSA/CgpgYGB7ciBmYXNoaW9uX21uaXN0X21heF9wb29sX2xheWVyX291dHB1dF9zaGFwZX0KMjYgLyAyICMgMjYgLSBpbnB1dCBvZiB0aGUgYWN0aXZhdGlvbiBtYXAgc2hhcGUsIDIgLSBwb29sIHNpemUKYGBgCgpQb3dpZWR6bXksIMW8ZSBjaGNlbXkgZG9rb8WEY3p5xIcgbmFzesSFIGFyY2hpdGVrdHVyxJkgaSBkb2RhxIcgd2Fyc3R3xJkgd3lqxZtjaW93xIUuIHpyb2JpbXkgdG8gdyB0YWtpIHNhbSBzcG9zw7NiIGphayB3IE1MUCwgYWxlIHphbmltIHRvIHpyb2JpbXksIG11c2lteSBzcMWCYXN6Y3p5xIcgbmFzesSFIG9zdGF0bmnEhSBtYXDEmSBha3R5d2FjamkgZG8gd2VrdG9yYToKCmBgYHtyIGZhc2hpb25fbW5pc3Rfb3V0cHV0X2xheWVyfQpmbW5pc3RfbW9kZWwxICU+JQogICMgVGVuc29yIGZsYXR0ZW5pbmcgaW50byB2ZWN0b3IgZm9ybQogIGxheWVyX2ZsYXR0ZW4oKSAlPiUKICAjIE91dHB1dCBsYXllciAtIDEwIGNsYXNzZXMsIHNvZnRtYXggYWN0aXZhdGlvbgogIGxheWVyX2RlbnNlKHVuaXRzID0gMTAsIGFjdGl2YXRpb24gPSAnc29mdG1heCcpCgpmbW5pc3RfbW9kZWwxCmBgYAoKRGxhY3plZ28gb3V0cHV0IG1hIGtzenRhxYJ0IChOb25lLCA1NDA4KSA/CgpgYGB7ciBmYXNoaW9uX21uaXN0X2ZsYXR0ZW5fbGF5ZXJfb3V0cHV0X3NoYXBlfQoxMyAqIDEzICogMzIgIyBDaGVjayBkaW1tZW50aW9ucyBvZiBwcmV2aW91cyBsYXllcgpgYGAKCkRsYWN6ZWdvIG1hbXkgNTQwOTAgcGFyYW1ldHLDs3cgZG8gdHJlbm93YW5pYSB3IHdhcnN0d2llIHd5asWbY2lvd2VqPwoKYGBge3IgZmFzaGlvbl9tbmlzdF9vdXRwdXRfbGF5ZXJfb3V0cHV0X3NoYXBlfQo1NDA4ICogMTAgKyAxMCAjIDU0MDggLSBmcm9tIGxheWVyX2ZsYXR0ZW4gKiAxMCBuZXVyb25zICsgYmlhc2VzCmBgYAoKQXJjaGl0ZXJ0dXJhIENOTiBqZXN0IHVrb8WEY3pvbmEsIG1vxbxlbXkgdGVyYXogc2tvbXBpbG93YcSHIG1vZGVsOgoKYGBge3IgZmFzaGlvbl9tbmlzdF9jb21waWxlfQpmbW5pc3RfbW9kZWwxICU+JSBjb21waWxlKAogIGxvc3MgPSAiY2F0ZWdvcmljYWxfY3Jvc3NlbnRyb3B5IiwKICBvcHRpbWl6ZXIgPSBvcHRpbWl6ZXJfYWRhZGVsdGEoKSwKICBtZXRyaWNzID0gYygnYWNjdXJhY3knKQopCmBgYAoKaSBnbyB3eXRyZW5vd2HEhzoKCmBgYHtyIGZhc2hpb25fbW5pc3RfZml0fQpoaXN0b3J5IDwtIGZtbmlzdF9tb2RlbDEgJT4lIGZpdCgKICBmYXNoaW9uX21uaXN0X3RyYWluX1gsCiAgZmFzaGlvbl9tbmlzdF90cmFpbl9ZLAogIGJhdGNoX3NpemUgPSAxMjgsCiAgZXBvY2hzID0gMzAsCiAgdmFsaWRhdGlvbl9zcGxpdCA9IDAuMiwKICBjYWxsYmFja3MgPSBjKGNhbGxiYWNrX21vZGVsX2NoZWNrcG9pbnQobW9uaXRvciA9ICJ2YWxfYWNjdXJhY3kiLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBmaWxlcGF0aCA9ICJtb2RlbHMvZm1uaXN0X21vZGVsMS5oZGY1IiwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgc2F2ZV9iZXN0X29ubHkgPSBUUlVFKSkKKSAKYGBgCgpvcmF6IHpld2FsdW93YcSHIG5hIHpiaW9yemUgdGVzdG93eW06CgpgYGB7ciBmYXNoaW9uX21uaXN0X2V2YWx1YXRlfQpmbW5pc3RfbW9kZWwxICU+JSBldmFsdWF0ZShmYXNoaW9uX21uaXN0X3Rlc3RfWCwgZmFzaGlvbl9tbmlzdF90ZXN0X1kpCmBgYAoKQ3phcyBuYSBzdHdvcnplbmllIGJhcmR6aWVqIHphYXdhbnNvd2FuZWogd2Vyc2ppIHRlZ28gbW9kZWx1OgoKYGBge3IgZmFzaGlvbl9tbmlzdF9leH0KIyBFeC4gRXhwYW5kIG1vZGVsIGJ5IGFkZGluZyBiYXRjaCBub3JtYWxpemF0aW9uLiBBZGQgZWFybHkgc3RvcHBpbmcgYW5kIFRlbnNvcmJvYXJkIGNhbGxiYWNrcy4KIyAxLiBNb2RlbCBhcmNoaXRlY3R1cmU6CiMgMkQgY29udm9sdXRpb24gd2l0aCA2NCBmaWx0ZXJzIG9mIHNpemUgM3gzLCAxeDEgc3RyaWRlLCAnbGluZWFyJyBhY3RpdmF0aW9uLCAic2FtZSIgcGFkZGluZwojIEJhdGNoIG5vcm1hbGl6YXRpb24gbGF5ZXIKIyAicmVsdSIgYWN0aXZhdGlvbiBsYXllcgojIDJEIG1heCBwb29saW5nIHNpemUgMngyLCAyeDIgc3RyaWRlCiMgZHJvcG91dCBsYXllciB3aXRoIDI1JSBkcm9wIHJhdGUKIyBGbGF0dGVuaW5nIGxheWVyCiMgZGVuc2UgbGF5ZXIgd2l0aCA1MTIgbmV1cm9ucyBhbmQgInJlbHUiIGFjdGl2YXRpb24KIyBkcm9wb3V0IGxheWVyIHdpdGggMjUlIGRyb3AgcmF0ZQojIENob29zZSBjb3JyZWN0IGxheWVyIGFzIG91dHB1dAoKIyAyLiBDb21waWxlIG1vZGVsIHdpdGggQWRhZGVsdGEgb3B0aW1pemVyIC0gc2V0IGxlYXJuaW5nIHJhdGUgMC4wMSwgZGVjYXkgPSAxZS02LgoKIyAzLiBGaXQgdGhlIG1vZGVsIC0gYmVzaWRlIHN0YW5kYXJ0IHNldHRpbmdzIGFkZCBjYWxsYmFja3M6CiMgbW9kZWwgY2hlY2twb2ludCAtIHNhdmUgbW9kZWwgYXMgImZtbmlzdF9tb2RlbDIuaGRmNSIgaW4gIm1vZGVscyIgZm9sZGVyCiMgZWFybHkgc3RvcHBpbmcgLSB3aWxsIHN0b3AgdHJhaW5pbmcgaWYgdGhlcmUncyBubyBwcm9ncmVzcyAobW9uaXRvciAidmFsX2FjY3VyYWN5IiBhbmQgZG9uJ3Qgd2FpdCBtb3JlIHRoYW4gNSBlcG9jaHMpCiMgdGVuc29yYm9hcmQgLSBzYXZlIGxvZ3MgdG8gdGVuc29yYm9hcmQgaW4gInRlbnNvcmJvYXJkIiBmb2xkZXIgLSBjYWxsYmFja190ZW5zb3Jib2FyZAoKIyA0LiBFdmFsdWF0ZSB0aGUgbW9kZWwgb24gdGVzdCBzZXQKCmZtbmlzdF9tb2RlbDIgPC0ga2VyYXNfbW9kZWxfc2VxdWVudGlhbCgpICU+JQogIGxheWVyX2NvbnZfMmQoCiAgICBmaWx0ZXIgPSA2NCwga2VybmVsX3NpemUgPSBjKDMsIDMpLCBwYWRkaW5nID0gInNhbWUiLAogICAgaW5wdXRfc2hhcGUgPSBjKDI4LCAyOCwgMSksIGFjdGl2YXRpb24gPSAibGluZWFyIikgJT4lCiAgbGF5ZXJfYmF0Y2hfbm9ybWFsaXphdGlvbigpICU+JQogIGxheWVyX2FjdGl2YXRpb24oInJlbHUiKSAlPiUKICBsYXllcl9tYXhfcG9vbGluZ18yZChwb29sX3NpemUgPSBjKDIsIDIpLCBzdHJpZGVzID0gYygyLCAyKSkgJT4lCiAgbGF5ZXJfZHJvcG91dCgwLjI1KSAlPiUKICBsYXllcl9mbGF0dGVuKCkgJT4lCiAgbGF5ZXJfZGVuc2UoNTEyLCBhY3RpdmF0aW9uID0gInJlbHUiKSAlPiUKICBsYXllcl9kcm9wb3V0KDAuMjUpICU+JQogIGxheWVyX2RlbnNlKDEwLCBhY3RpdmF0aW9uID0gInNvZnRtYXgiKQoKZm1uaXN0X21vZGVsMiAlPiUgY29tcGlsZSgKICBsb3NzID0gImNhdGVnb3JpY2FsX2Nyb3NzZW50cm9weSIsCiAgb3B0aW1pemVyID0gb3B0aW1pemVyX2FkYWRlbHRhKGxlYXJuaW5nX3JhdGUgPSAwLjAxLCBkZWNheSA9IDFlLTYpLAogIG1ldHJpY3MgPSAiYWNjdXJhY3kiCikKCmlmICghZGlyLmV4aXN0cygidGVuc29yYm9hcmQiKSkgZGlyLmNyZWF0ZSgidGVuc29yYm9hcmQiKQpoaXN0b3J5IDwtIGZtbmlzdF9tb2RlbDIgJT4lIGZpdCgKICBmYXNoaW9uX21uaXN0X3RyYWluX1gsCiAgZmFzaGlvbl9tbmlzdF90cmFpbl9ZLAogIGJhdGNoX3NpemUgPSAxMjgsCiAgZXBvY2hzID0gMTAsCiAgdmFsaWRhdGlvbl9zcGxpdCA9IDAuMiwKICBjYWxsYmFja3MgPSBjKGNhbGxiYWNrX21vZGVsX2NoZWNrcG9pbnQobW9uaXRvciA9ICJ2YWxfYWNjdXJhY3kiLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBmaWxlcGF0aCA9ICJtb2RlbHMvZm1uaXN0X21vZGVsMi5oZGY1IiwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgc2F2ZV9iZXN0X29ubHkgPSBUUlVFKSwKICAgICAgICAgICAgICAgIGNhbGxiYWNrX2Vhcmx5X3N0b3BwaW5nKG1vbml0b3IgPSAidmFsX2FjY3VyYWN5IiwgcGF0aWVuY2UgPSA1KSwKICAgICAgICAgICAgICAgIGNhbGxiYWNrX3RlbnNvcmJvYXJkKGxvZ19kaXIgPSAidGVuc29yYm9hcmQiKSkKKQoKdGVuc29yYm9hcmQoInRlbnNvcmJvYXJkIikKCmZtbmlzdF9tb2RlbDIgJT4lIGV2YWx1YXRlKGZhc2hpb25fbW5pc3RfdGVzdF9YLCBmYXNoaW9uX21uaXN0X3Rlc3RfWSkKYGBgCgo=</div>
 
 
 
